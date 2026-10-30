@@ -20,16 +20,6 @@ namespace GloveFunctions
         g_setBodyGroup = fn;
     }
 
-    void SetMemAlloc(MemAllocFn fn)
-    {
-        g_memAlloc = fn;
-    }
-
-    void SetMemFree(MemFreeFn fn)
-    {
-        g_memFree = fn;
-    }
-
     GloveCreatePaintKitFn GetCreatePaintKit()
     {
         return g_createPaintKit;
@@ -40,13 +30,4 @@ namespace GloveFunctions
         return g_setBodyGroup;
     }
 
-    MemAllocFn GetMemAlloc()
-    {
-        return g_memAlloc;
-    }
-
-    MemFreeFn GetMemFree()
-    {
-        return g_memFree;
-    }
 }

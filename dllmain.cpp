@@ -12,18 +12,12 @@
 #pragma comment(lib, "Psapi.lib")
 
 // ============================================================
-// v1.0.3a
+// v1.0.4a
 // n1ssan-gloves — Checkpoint 1
 // Resolve Loot's two glove functions.
 // No game memory writes.
 // ============================================================
 
-using GloveCreatePaintKitFn = void* (__fastcall*)(void* item);
-using GloveSetBodyGroupFn = void(__fastcall*)(
-    void* pawn,
-    const char* group,
-    unsigned int value
-    );
 using MemAllocFn = void* (__fastcall*)(size_t size);
 using MemFreeFn = void(__fastcall*)(void* ptr);
 
@@ -40,13 +34,11 @@ static void ResolveGameAllocator()
         return;
     }
 
-    GloveFunctions::SetMemAlloc(g_memAlloc);
-    GloveFunctions::SetMemFree(g_memFree);
+    printf("[gloves] tier0.dll=%p\n", tier0);
 
-    Gloves::SetMemoryFunctions(
-        reinterpret_cast<Gloves::MemAllocFn>(g_memAlloc),
-        reinterpret_cast<Gloves::MemFreeFn>(g_memFree)
-    );
+    // Do not register or initialize null allocator pointers.
+    g_memAlloc = nullptr;
+    g_memFree = nullptr;
 
     printf("[gloves] MemAlloc=%p\n",
         reinterpret_cast<void*>(g_memAlloc));
@@ -54,11 +46,8 @@ static void ResolveGameAllocator()
     printf("[gloves] MemFree=%p\n",
         reinterpret_cast<void*>(g_memFree));
 
-    printf("[gloves] MemAlloc: %s\n",
-        g_memAlloc ? "FOUND" : "NOT FOUND");
-
-    printf("[gloves] MemFree: %s\n",
-        g_memFree ? "FOUND" : "NOT FOUND");
+    printf("[gloves] MemAlloc: NOT RESOLVED\n");
+    printf("[gloves] MemFree: NOT RESOLVED\n");
 }
 
 struct ModuleInfo

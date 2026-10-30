@@ -89,54 +89,103 @@ namespace
         return entity;
     }
 
+
     uintptr_t GetLocalPawn()
     {
-        uintptr_t controller = 0;
+        static int diagnosticCount = 0;
+        const bool log = diagnosticCount < 8;
+        if (log)
+            ++diagnosticCount;
 
-        if (Read(
-            g_clientBase + RVA_LOCAL_CONTROLLER,
-            controller) && controller > 0x10000)
+        uintptr_t controller = 0;
+        const bool controllerRead =
+            Read(g_clientBase + RVA_LOCAL_CONTROLLER, controller);
+
+        if (log)
+            printf("[pawn-debug] controllerRead=%d controller=%p\n",
+                controllerRead, (void*)controller);
+
+        if (controllerRead && controller > 0x10000)
         {
             uint32_t handle = 0;
+            const bool handleRead =
+                Read(controller + OFFSET_CONTROLLER_PAWN, handle);
 
-            if (Read(
-                controller + OFFSET_CONTROLLER_PAWN,
-                handle) &&
-                handle != 0 &&
-                handle != 0xFFFFFFFF)
+            if (log)
+                printf("[pawn-debug] handleRead=%d handle=0x%08X\n",
+                    handleRead, handle);
+
+            if (handleRead && handle != 0 && handle != 0xFFFFFFFF)
             {
                 uintptr_t entitySystem = 0;
+                const bool esRead =
+                    Read(g_clientBase + RVA_ENTITY_LIST, entitySystem);
 
-                if (Read(
-                    g_clientBase + RVA_ENTITY_LIST,
-                    entitySystem) &&
-                    entitySystem > 0x10000)
+                if (log)
+                    printf("[pawn-debug] entitySystemRead=%d entitySystem=%p\n",
+                        esRead, (void*)entitySystem);
+
+                if (esRead && entitySystem > 0x10000)
                 {
-                    const uintptr_t pawn =
-                        ResolveEntity(entitySystem, handle);
+                    const uint32_t index = handle & 0x7FFF;
+                    const uint32_t chunkIndex = index >> 9;
+                    const uint32_t indexInChunk = index & 0x1FF;
 
-                    if (pawn)
-                        return pawn;
+                    uintptr_t chunk = 0;
+                    const bool chunkRead = Read(
+                        entitySystem + chunkIndex * 8 + ENTITY_CHUNK_TABLE,
+                        chunk);
+
+                    uintptr_t entity = 0;
+                    const bool entityRead =
+                        chunkRead && chunk &&
+                        Read(chunk + indexInChunk * ENTITY_CHUNK_STRIDE, entity);
+
+                    uintptr_t vtable = 0;
+                    const bool vtRead =
+                        entityRead && entity && Read(entity, vtable);
+
+                    const bool valid = vtRead && InClient(vtable);
+
+                    if (log)
+                        printf("[pawn-debug] index=%u chunkRead=%d chunk=%p "
+                            "entityRead=%d entity=%p vtable=%p valid=%d\n",
+                            index, chunkRead, (void*)chunk,
+                            entityRead, (void*)entity, (void*)vtable, valid);
+
+                    if (valid)
+                        return entity;
                 }
             }
         }
 
-        // Direct-pawn fallback.
+        // Direct-pawn fallback
         uintptr_t pawn = 0;
+        const bool pawnRead =
+            Read(g_clientBase + RVA_LOCAL_PAWN, pawn);
 
-        if (Read(
-            g_clientBase + RVA_LOCAL_PAWN,
-            pawn) && pawn > 0x10000)
-        {
-            uintptr_t vtable = 0;
+        uintptr_t vtable = 0;
+        const bool vtRead =
+            pawnRead && pawn > 0x10000 && Read(pawn, vtable);
 
-            if (Read(pawn, vtable) && InClient(vtable))
-                return pawn;
-        }
+        const bool validVtable = vtRead && InClient(vtable);
+
+        int32_t health = 0;
+        const bool healthRead =
+            pawnRead && pawn > 0x10000 &&
+            Read(pawn + OFFSET_HEALTH, health);
+
+        if (log)
+            printf("[pawn-debug] directRead=%d pawn=%p vtable=%p "
+                "validVtable=%d healthRead=%d health=%d\n",
+                pawnRead, (void*)pawn, (void*)vtable,
+                validVtable, healthRead, health);
+
+        if (pawnRead && pawn > 0x10000 && validVtable)
+            return pawn;
 
         return 0;
     }
-
 
     void __fastcall FrameStageHook(void* instance, int stage)
     {

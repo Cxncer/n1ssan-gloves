@@ -13,10 +13,6 @@ namespace
 
     constexpr int FRAME_STAGE_NET_UPDATE_END = 6;
 
-    constexpr uintptr_t RVA_LOCAL_CONTROLLER = 0x253EEF8;
-    constexpr uintptr_t RVA_LOCAL_PAWN = 0x25676D8;
-    constexpr uintptr_t RVA_ENTITY_LIST = 0x271C8B8;
-
     constexpr uintptr_t OFFSET_CONTROLLER_PAWN = 0x92C;
     constexpr uintptr_t OFFSET_HEALTH = 0x34C;
 
@@ -27,6 +23,9 @@ namespace
 
     uintptr_t g_clientBase = 0;
     size_t g_clientSize = 0;
+    uintptr_t g_localControllerGlobal = 0;
+    uintptr_t g_localPawnGlobal = 0;
+    uintptr_t g_entityListGlobal = 0;
 
     void* g_clientInterface = nullptr;
     void** g_vtable = nullptr;
@@ -53,6 +52,148 @@ namespace
         return address >= g_clientBase &&
             address < g_clientBase + g_clientSize;
     }
+
+
+    uintptr_t ScanPattern(const char* pattern)
+    {
+        uint8_t bytes[256]{};
+        bool wildcards[256]{};
+        size_t length = 0;
+
+        const char* p = pattern;
+
+        while (*p)
+        {
+            while (*p == ' ')
+                ++p;
+
+            if (!*p)
+                break;
+
+            if (length >= 256)
+                return 0;
+
+            if (*p == '?')
+            {
+                wildcards[length] = true;
+                ++length;
+                ++p;
+            }
+            else
+            {
+                char hex[3] = { p[0], p[1], 0 };
+                bytes[length] = static_cast<uint8_t>(
+                    strtoul(hex, nullptr, 16));
+
+                wildcards[length] = false;
+                ++length;
+                p += 2;
+            }
+        }
+
+        if (!length || length > g_clientSize)
+            return 0;
+
+        const auto* base =
+            reinterpret_cast<const uint8_t*>(g_clientBase);
+
+        __try
+        {
+            for (size_t i = 0; i <= g_clientSize - length; ++i)
+            {
+                bool match = true;
+
+                for (size_t j = 0; j < length; ++j)
+                {
+                    if (!wildcards[j] && base[i + j] != bytes[j])
+                    {
+                        match = false;
+                        break;
+                    }
+                }
+
+                if (match)
+                    return reinterpret_cast<uintptr_t>(base + i);
+            }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            return 0;
+        }
+
+        return 0;
+    }
+
+    uintptr_t ResolveGlobal(
+        const char* name,
+        const char* pattern)
+    {
+        const uintptr_t hit = ScanPattern(pattern);
+
+        if (!hit)
+        {
+            printf("[auto-off] %s: SIGNATURE NOT FOUND\n", name);
+            return 0;
+        }
+
+        int32_t displacement = 0;
+
+        if (!Read(hit + 3, displacement))
+        {
+            printf("[auto-off] %s: displacement read FAILED\n", name);
+            return 0;
+        }
+
+        const uintptr_t target =
+            hit + 7 + static_cast<intptr_t>(displacement);
+
+        if (!InClient(target))
+        {
+            printf("[auto-off] %s: target outside client.dll (%p)\n",
+                name, (void*)target);
+            return 0;
+        }
+
+        uintptr_t currentValue = 0;
+        const bool readOK = Read(target, currentValue);
+
+        printf(
+            "[auto-off] %-26s hit=%p global=%p value=%p read=%d\n",
+            name,
+            (void*)hit,
+            (void*)target,
+            (void*)currentValue,
+            readOK);
+
+        return target;
+    }
+
+    bool ResolvePawnGlobals()
+    {
+        printf("[auto-off] Resolving client.dll globals...\n");
+
+        g_entityListGlobal = ResolveGlobal(
+            "dwEntityList",
+            "48 8B 1D ? ? ? ? 48 89 1D ? ? ? ?");
+
+        g_localControllerGlobal = ResolveGlobal(
+            "dwLocalPlayerController",
+            "48 8B 05 ? ? ? ? 41 89 BE");
+
+        g_localPawnGlobal = ResolveGlobal(
+            "dwLocalPlayerPawn",
+            "48 8B 0D ? ? ? ? 4C 8B C0 48 8B");
+
+        const int matched =
+            (g_entityListGlobal != 0) +
+            (g_localControllerGlobal != 0) +
+            (g_localPawnGlobal != 0);
+
+        printf("[auto-off] Summary: %d/3 globals resolved\n", matched);
+
+        return matched == 3;
+    }
+
 
     uintptr_t ResolveEntity(uintptr_t entitySystem, uint32_t handle)
     {
@@ -91,9 +232,9 @@ namespace
 
 
 
+
     uintptr_t GetLocalPawn()
     {
-        // Keep scanning every call, but only print diagnostics every 5 seconds.
         static ULONGLONG lastLogTime = 0;
 
         const ULONGLONG now = GetTickCount64();
@@ -103,42 +244,49 @@ namespace
             lastLogTime = now;
 
         uintptr_t controller = 0;
-        const bool controllerRead =
-            Read(g_clientBase + RVA_LOCAL_CONTROLLER, controller);
+        bool controllerRead = false;
+
+        if (g_localControllerGlobal)
+            controllerRead = Read(g_localControllerGlobal, controller);
 
         if (controllerRead && controller > 0x10000)
         {
             uint32_t handle = 0;
-            const bool handleRead =
-                Read(controller + OFFSET_CONTROLLER_PAWN, handle);
 
-            if (handleRead && handle != 0 && handle != 0xFFFFFFFF)
+            if (Read(controller + OFFSET_CONTROLLER_PAWN, handle) &&
+                handle != 0 && handle != 0xFFFFFFFF)
             {
                 uintptr_t entitySystem = 0;
-                const bool esRead =
-                    Read(g_clientBase + RVA_ENTITY_LIST, entitySystem);
 
-                if (esRead && entitySystem > 0x10000)
+                if (g_entityListGlobal &&
+                    Read(g_entityListGlobal, entitySystem) &&
+                    entitySystem > 0x10000)
                 {
                     const uint32_t index = handle & 0x7FFF;
                     const uint32_t chunkIndex = index >> 9;
                     const uint32_t indexInChunk = index & 0x1FF;
 
                     uintptr_t chunk = 0;
+
                     const bool chunkRead = Read(
                         entitySystem + chunkIndex * 8 + ENTITY_CHUNK_TABLE,
                         chunk);
 
                     uintptr_t entity = 0;
+
                     const bool entityRead =
                         chunkRead && chunk &&
-                        Read(chunk + indexInChunk * ENTITY_CHUNK_STRIDE, entity);
+                        Read(
+                            chunk + indexInChunk * ENTITY_CHUNK_STRIDE,
+                            entity);
 
                     uintptr_t vtable = 0;
+
                     const bool vtRead =
                         entityRead && entity && Read(entity, vtable);
 
-                    const bool valid = vtRead && InClient(vtable);
+                    const bool valid =
+                        vtRead && InClient(vtable);
 
                     if (log)
                     {
@@ -159,28 +307,25 @@ namespace
                         return entity;
                 }
             }
-            else if (log)
-            {
-                printf(
-                    "[pawn-scan] controller=%p handleRead=%d handle=0x%08X\n",
-                    (void*)controller,
-                    handleRead,
-                    handle);
-            }
         }
 
         // Direct-pawn fallback.
         uintptr_t pawn = 0;
+
         const bool pawnRead =
-            Read(g_clientBase + RVA_LOCAL_PAWN, pawn);
+            g_localPawnGlobal &&
+            Read(g_localPawnGlobal, pawn);
 
         uintptr_t vtable = 0;
+
         const bool vtRead =
             pawnRead && pawn > 0x10000 && Read(pawn, vtable);
 
-        const bool validVtable = vtRead && InClient(vtable);
+        const bool validVtable =
+            vtRead && InClient(vtable);
 
         int32_t health = 0;
+
         const bool healthRead =
             pawnRead && pawn > 0x10000 &&
             Read(pawn + OFFSET_HEALTH, health);
@@ -188,9 +333,16 @@ namespace
         if (log)
         {
             printf(
+                "[pawn-scan] globals: controller=%p pawn=%p entityList=%p\n",
+                (void*)g_localControllerGlobal,
+                (void*)g_localPawnGlobal,
+                (void*)g_entityListGlobal);
+
+            printf(
                 "[pawn-scan] controllerRead=%d controller=%p "
                 "directRead=%d pawn=%p vtable=%p validVtable=%d "
                 "healthRead=%d health=%d\n",
+                controllerRead,
                 controllerRead,
                 (void*)controller,
                 pawnRead,
@@ -206,6 +358,7 @@ namespace
 
         return 0;
     }
+
 
 
     void __fastcall FrameStageHook(void* instance, int stage)
@@ -286,6 +439,11 @@ namespace GlovesIntegration
             reinterpret_cast<uintptr_t>(info.lpBaseOfDll);
 
         g_clientSize = info.SizeOfImage;
+
+        const bool globalsReady = ResolvePawnGlobals();
+
+        printf("[integration] Pawn globals: %s\n",
+            globalsReady ? "READY" : "PARTIAL");
 
         using CreateInterfaceFn = void* (*)(const char*, int*);
 

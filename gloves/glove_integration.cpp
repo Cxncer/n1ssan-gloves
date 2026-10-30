@@ -90,20 +90,21 @@ namespace
     }
 
 
+
     uintptr_t GetLocalPawn()
     {
-        static int diagnosticCount = 0;
-        const bool log = diagnosticCount < 8;
+        // Keep scanning every call, but only print diagnostics every 5 seconds.
+        static ULONGLONG lastLogTime = 0;
+
+        const ULONGLONG now = GetTickCount64();
+        const bool log = (now - lastLogTime >= 5000);
+
         if (log)
-            ++diagnosticCount;
+            lastLogTime = now;
 
         uintptr_t controller = 0;
         const bool controllerRead =
             Read(g_clientBase + RVA_LOCAL_CONTROLLER, controller);
-
-        if (log)
-            printf("[pawn-debug] controllerRead=%d controller=%p\n",
-                controllerRead, (void*)controller);
 
         if (controllerRead && controller > 0x10000)
         {
@@ -111,19 +112,11 @@ namespace
             const bool handleRead =
                 Read(controller + OFFSET_CONTROLLER_PAWN, handle);
 
-            if (log)
-                printf("[pawn-debug] handleRead=%d handle=0x%08X\n",
-                    handleRead, handle);
-
             if (handleRead && handle != 0 && handle != 0xFFFFFFFF)
             {
                 uintptr_t entitySystem = 0;
                 const bool esRead =
                     Read(g_clientBase + RVA_ENTITY_LIST, entitySystem);
-
-                if (log)
-                    printf("[pawn-debug] entitySystemRead=%d entitySystem=%p\n",
-                        esRead, (void*)entitySystem);
 
                 if (esRead && entitySystem > 0x10000)
                 {
@@ -148,18 +141,35 @@ namespace
                     const bool valid = vtRead && InClient(vtable);
 
                     if (log)
-                        printf("[pawn-debug] index=%u chunkRead=%d chunk=%p "
-                            "entityRead=%d entity=%p vtable=%p valid=%d\n",
-                            index, chunkRead, (void*)chunk,
-                            entityRead, (void*)entity, (void*)vtable, valid);
+                    {
+                        printf(
+                            "[pawn-scan] controller=%p handle=0x%08X "
+                            "entitySystem=%p chunk=%p entity=%p "
+                            "vtable=%p valid=%d\n",
+                            (void*)controller,
+                            handle,
+                            (void*)entitySystem,
+                            (void*)chunk,
+                            (void*)entity,
+                            (void*)vtable,
+                            valid);
+                    }
 
                     if (valid)
                         return entity;
                 }
             }
+            else if (log)
+            {
+                printf(
+                    "[pawn-scan] controller=%p handleRead=%d handle=0x%08X\n",
+                    (void*)controller,
+                    handleRead,
+                    handle);
+            }
         }
 
-        // Direct-pawn fallback
+        // Direct-pawn fallback.
         uintptr_t pawn = 0;
         const bool pawnRead =
             Read(g_clientBase + RVA_LOCAL_PAWN, pawn);
@@ -176,16 +186,27 @@ namespace
             Read(pawn + OFFSET_HEALTH, health);
 
         if (log)
-            printf("[pawn-debug] directRead=%d pawn=%p vtable=%p "
-                "validVtable=%d healthRead=%d health=%d\n",
-                pawnRead, (void*)pawn, (void*)vtable,
-                validVtable, healthRead, health);
+        {
+            printf(
+                "[pawn-scan] controllerRead=%d controller=%p "
+                "directRead=%d pawn=%p vtable=%p validVtable=%d "
+                "healthRead=%d health=%d\n",
+                controllerRead,
+                (void*)controller,
+                pawnRead,
+                (void*)pawn,
+                (void*)vtable,
+                validVtable,
+                healthRead,
+                health);
+        }
 
         if (pawnRead && pawn > 0x10000 && validVtable)
             return pawn;
 
         return 0;
     }
+
 
     void __fastcall FrameStageHook(void* instance, int stage)
     {

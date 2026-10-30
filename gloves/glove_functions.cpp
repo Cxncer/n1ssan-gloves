@@ -1,15 +1,35 @@
-
 #include "glove_functions.h"
 
-// These are defined in dllmain.cpp.
-// We'll update the bootstrap to expose them through this interface.
-extern GloveCreatePaintKitFn g_createPaintKit;
-extern GloveSetBodyGroupFn g_setBodyGroup;
-extern MemAllocFn g_memAlloc;
-extern MemFreeFn g_memFree;
+namespace
+{
+    GloveCreatePaintKitFn g_createPaintKit = nullptr;
+    GloveSetBodyGroupFn g_setBodyGroup = nullptr;
+    MemAllocFn g_memAlloc = nullptr;
+    MemFreeFn g_memFree = nullptr;
+}
 
 namespace GloveFunctions
 {
+    void SetCreatePaintKit(GloveCreatePaintKitFn fn)
+    {
+        g_createPaintKit = fn;
+    }
+
+    void SetSetBodyGroup(GloveSetBodyGroupFn fn)
+    {
+        g_setBodyGroup = fn;
+    }
+
+    void SetMemAlloc(MemAllocFn fn)
+    {
+        g_memAlloc = fn;
+    }
+
+    void SetMemFree(MemFreeFn fn)
+    {
+        g_memFree = fn;
+    }
+
     GloveCreatePaintKitFn GetCreatePaintKit()
     {
         return g_createPaintKit;

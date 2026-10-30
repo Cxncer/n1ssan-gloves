@@ -1,9 +1,9 @@
-
 #pragma once
 
 #include <cstddef>
 
 using GloveCreatePaintKitFn = void* (__fastcall*)(void* item);
+
 using GloveSetBodyGroupFn = void(__fastcall*)(
     void* pawn,
     const char* group,
@@ -15,9 +15,13 @@ using MemFreeFn = void(__fastcall*)(void* ptr);
 
 namespace GloveFunctions
 {
+    void SetCreatePaintKit(GloveCreatePaintKitFn fn);
+    void SetSetBodyGroup(GloveSetBodyGroupFn fn);
+    void SetMemAlloc(MemAllocFn fn);
+    void SetMemFree(MemFreeFn fn);
+
     GloveCreatePaintKitFn GetCreatePaintKit();
     GloveSetBodyGroupFn GetSetBodyGroup();
-
     MemAllocFn GetMemAlloc();
     MemFreeFn GetMemFree();
 }

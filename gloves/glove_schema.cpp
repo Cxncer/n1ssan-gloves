@@ -259,23 +259,35 @@ namespace GlovesSchema
         return g_ready;
     }
 
+    bool TryGet(
+        const char* className,
+        const char* fieldName,
+        std::uint32_t& offset)
+    {
+        offset = 0;
+
+        if (!g_ready || !className || !fieldName)
+            return false;
+
+        const std::string qualifiedName =
+            std::string(className) + "->" + fieldName;
+
+        const auto it = g_fields.find(qualifiedName);
+
+        if (it == g_fields.end())
+            return false;
+
+        offset = it->second;
+        return true;
+    }
+
     std::uint32_t Get(
         const char* className,
         const char* fieldName)
     {
-        if (!g_ready || !className || !fieldName)
-            return 0;
-
-        const std::string qualifiedName =
-            std::string(className) +
-            "->" +
-            fieldName;
-
-        const auto it = g_fields.find(qualifiedName);
-
-        return it != g_fields.end()
-            ? it->second
-            : 0;
+        std::uint32_t offset = 0;
+        TryGet(className, fieldName, offset);
+        return offset;
     }
 
     bool IsReady()

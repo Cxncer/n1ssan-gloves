@@ -7,11 +7,12 @@
 
 #include "gloves/glove_memory.h"
 #include "gloves/glove_schema.h"
+#include "gloves/glove_functions.h"
 
 #pragma comment(lib, "Psapi.lib")
 
 // ============================================================
-// v1.0.2a
+// v1.0.3a
 // n1ssan-gloves — Checkpoint 1
 // Resolve Loot's two glove functions.
 // No game memory writes.
@@ -39,11 +40,8 @@ static void ResolveGameAllocator()
         return;
     }
 
-    g_memAlloc = reinterpret_cast<MemAllocFn>(
-        GetProcAddress(tier0, "MemAlloc_AllocFunc"));
-
-    g_memFree = reinterpret_cast<MemFreeFn>(
-        GetProcAddress(tier0, "MemAlloc_FreeFunc"));
+    GloveFunctions::SetMemAlloc(g_memAlloc);
+    GloveFunctions::SetMemFree(g_memFree);
 
     Gloves::SetMemoryFunctions(
         reinterpret_cast<Gloves::MemAllocFn>(g_memAlloc),

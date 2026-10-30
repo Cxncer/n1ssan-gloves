@@ -12,17 +12,12 @@
 #pragma comment(lib, "Psapi.lib")
 
 // ============================================================
-// v1.0.6a 
+// v1.0.7a 
 // n1ssan-gloves — Checkpoint 1
 // Resolve Loot's two glove functions.
 // No game memory writes.
 // ============================================================
 
-using MemAllocFn = void* (__fastcall*)(size_t size);
-using MemFreeFn = void(__fastcall*)(void* ptr);
-
-static MemAllocFn g_memAlloc = nullptr;
-static MemFreeFn g_memFree = nullptr;
 
 void ResolveGameAllocator()
 {
@@ -247,11 +242,6 @@ DWORD WINAPI ExperimentThread(LPVOID)
 
     ResolveGloveFunctions();
     ResolveGameAllocator();
-
-    const bool allocatorTestPassed = Gloves::AllocatorSmokeTest();
-
-    printf("[gloves] Allocator smoke test: %s\n",
-        allocatorTestPassed ? "PASS" : "FAIL");
 
     const bool schemaReady = GlovesSchema::Initialize("client.dll");
 

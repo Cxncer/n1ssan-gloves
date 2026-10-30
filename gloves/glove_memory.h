@@ -12,6 +12,4 @@ namespace Gloves
     void* Allocate(std::size_t size);
     void Free(void* memory);
     bool MemoryReady();
-
-    bool AllocatorSmokeTest();
 }

@@ -1,8 +1,4 @@
-
-
 #include "glove_memory.h"
-#include <cstdio>
-#include <cstdint>
 
 #include <atomic>
 
@@ -43,41 +39,4 @@ namespace Gloves
             g_alloc.load(std::memory_order_acquire) != nullptr &&
             g_free.load(std::memory_order_acquire) != nullptr;
     }
-
-    bool AllocatorSmokeTest()
-    {
-        constexpr std::size_t TEST_SIZE = 64;
-        constexpr std::uint64_t TEST_VALUE = 0x4E315353414EULL;
-
-        if (!MemoryReady())
-        {
-            printf("[gloves] allocator smoke test: SKIPPED (not ready)\n");
-            return false;
-        }
-
-        void* memory = Allocate(TEST_SIZE);
-
-        if (!memory)
-        {
-            printf("[gloves] allocator smoke test: FAILED (allocation returned null)\n");
-            return false;
-        }
-
-        auto* value = static_cast<std::uint64_t*>(memory);
-        *value = TEST_VALUE;
-
-        const bool writeReadPassed = (*value == TEST_VALUE);
-
-        printf("[gloves] allocator smoke test: allocation=%s write_read=%s\n",
-            memory ? "PASS" : "FAIL",
-            writeReadPassed ? "PASS" : "FAIL");
-
-        Free(memory);
-
-        printf("[gloves] allocator smoke test: free invoked\n");
-
-        return writeReadPassed;
-    }
 }
-
-

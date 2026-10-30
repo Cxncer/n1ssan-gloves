@@ -1,12 +1,14 @@
-
 #include "econ_item_attribute_manager.h"
 
 #include <Windows.h>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <mutex>
+#include <unordered_map>
 
 #include "glove_memory.h"
+#include "glove_schema.h"
 
 namespace
 {
@@ -39,23 +41,43 @@ namespace
     constexpr std::uint16_t ATTR_SEED = 7;
     constexpr std::uint16_t ATTR_WEAR = 8;
 
-    // IMPORTANT:
-    // This offset must be verified against the current Lootline schema
-    // before enabling Create/Remove in a live game.
-    constexpr std::ptrdiff_t ATTRIBUTE_LIST_OFFSET = 0x208;
+    constexpr std::size_t ATTRIBUTE_COUNT = 3;
+    constexpr std::size_t EXTRA_CAPACITY = 8;
+
+    // Track only allocations created by n1ssan.
+    std::unordered_map<C_EconItemView*, EconItemAttribute*> g_ownedAttributes;
+    std::mutex g_attributeMutex;
 
     AttributeVector* GetAttributeVector(C_EconItemView* item)
     {
-        if (!item)
+        if (!item || !GlovesSchema::IsReady())
             return nullptr;
+
+        std::uint32_t attributeListOffset = 0;
+        std::uint32_t attributesOffset = 0;
+
+        if (!GlovesSchema::TryGet(
+            "C_EconItemView",
+            "m_AttributeList",
+            attributeListOffset))
+        {
+            return nullptr;
+        }
+
+        if (!GlovesSchema::TryGet(
+            "CAttributeList",
+            "m_Attributes",
+            attributesOffset))
+        {
+            return nullptr;
+        }
 
         auto* bytes = reinterpret_cast<std::uint8_t*>(item);
 
-        // C_EconItemView -> m_AttributeList -> m_Attributes.
-        // The AttributeList vector is at offset +0x08 within the list.
-        auto* attributeList = bytes + ATTRIBUTE_LIST_OFFSET;
+        auto* attributeList = bytes + attributeListOffset;
 
-        return reinterpret_cast<AttributeVector*>(attributeList + 0x08);
+        return reinterpret_cast<AttributeVector*>(
+            attributeList + attributesOffset);
     }
 
     void SetFloatAttribute(
@@ -77,7 +99,7 @@ namespace EconItemAttributeManager
         float wear,
         int seed)
     {
-        if (!item || !Gloves::MemoryReady() || paintKit <= 0)
+        if (!item || paintKit <= 0 || !Gloves::MemoryReady())
             return;
 
         AttributeVector* vector = GetAttributeVector(item);
@@ -85,26 +107,29 @@ namespace EconItemAttributeManager
         if (!vector)
             return;
 
-        // Do not overwrite an existing attribute allocation.
+        std::lock_guard<std::mutex> lock(g_attributeMutex);
+
+        // Never overwrite an existing vector.
         if (vector->size != 0 || vector->data != 0)
             return;
 
-        constexpr std::size_t ATTRIBUTE_COUNT = 3;
-        constexpr std::size_t EXTRA_CAPACITY = 8;
+        // Prevent duplicate allocations for the same item.
+        if (g_ownedAttributes.find(item) != g_ownedAttributes.end())
+            return;
 
-        const std::size_t capacity =
+        constexpr std::size_t capacity =
             ATTRIBUTE_COUNT + EXTRA_CAPACITY;
 
+        const std::size_t allocationSize =
+            capacity * sizeof(EconItemAttribute);
+
         auto* attributes = static_cast<EconItemAttribute*>(
-            Gloves::Allocate(capacity * sizeof(EconItemAttribute)));
+            Gloves::Allocate(allocationSize));
 
         if (!attributes)
             return;
 
-        std::memset(
-            attributes,
-            0,
-            capacity * sizeof(EconItemAttribute));
+        std::memset(attributes, 0, allocationSize);
 
         SetFloatAttribute(
             attributes[0],
@@ -121,18 +146,33 @@ namespace EconItemAttributeManager
             ATTR_WEAR,
             wear < 0.0f ? 0.01f : wear);
 
+        // Register ownership before exposing the allocation to the game.
+        try
+        {
+            const auto result = g_ownedAttributes.emplace(item, attributes);
+
+            if (!result.second)
+            {
+                Gloves::Free(attributes);
+                return;
+            }
+        }
+        catch (...)
+        {
+            Gloves::Free(attributes);
+            return;
+        }
+
         vector->size = static_cast<std::int32_t>(ATTRIBUTE_COUNT);
         vector->pad = 0;
-        vector->data =
-            reinterpret_cast<std::uintptr_t>(attributes);
-        vector->allocationCount =
-            static_cast<std::int32_t>(capacity);
+        vector->data = reinterpret_cast<std::uintptr_t>(attributes);
+        vector->allocationCount = static_cast<std::int32_t>(capacity);
         vector->growSizeAndFlags = VECTOR_FIXED_FLAGS;
     }
 
     void Remove(C_EconItemView* item)
     {
-        if (!item)
+        if (!item || !Gloves::MemoryReady())
             return;
 
         AttributeVector* vector = GetAttributeVector(item);
@@ -140,16 +180,30 @@ namespace EconItemAttributeManager
         if (!vector)
             return;
 
-        void* oldData =
-            reinterpret_cast<void*>(vector->data);
+        std::lock_guard<std::mutex> lock(g_attributeMutex);
 
+        const auto it = g_ownedAttributes.find(item);
+
+        // Do not free memory that n1ssan does not own.
+        if (it == g_ownedAttributes.end())
+            return;
+
+        EconItemAttribute* ownedMemory = it->second;
+
+        // If the game has changed the vector pointer, do not touch it.
+        // Retain our ownership record rather than risking corruption.
+        if (vector->data != reinterpret_cast<std::uintptr_t>(ownedMemory))
+            return;
+
+        // Clear the vector before releasing its backing allocation.
         vector->size = 0;
         vector->pad = 0;
         vector->data = 0;
         vector->allocationCount = 0;
         vector->growSizeAndFlags = 0;
 
-        if (oldData)
-            Gloves::Free(oldData);
+        g_ownedAttributes.erase(it);
+
+        Gloves::Free(ownedMemory);
     }
 }

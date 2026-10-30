@@ -8,11 +8,12 @@
 #include "gloves/glove_memory.h"
 #include "gloves/glove_schema.h"
 #include "gloves/glove_functions.h"
+#include "gloves/glove_integration.h"
 
 #pragma comment(lib, "Psapi.lib")
 
 // ============================================================
-// v1.0.8a 
+// v1.0.9a 
 // n1ssan-gloves — Checkpoint 1
 // Resolve Loot's two glove functions.
 // No game memory writes.
@@ -258,6 +259,14 @@ DWORD WINAPI ExperimentThread(LPVOID)
     }
 
     printf("[n1ssan-gloves] Checkpoint 1 complete\n");
+
+    if (schemaReady)
+    {
+        const bool hookReady = GlovesIntegration::Install();
+
+        printf("[integration] Hook: %s\n",
+            hookReady ? "INSTALLED" : "FAILED");
+    }
     return 0;
 }
 

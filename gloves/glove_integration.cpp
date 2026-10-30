@@ -137,25 +137,27 @@ namespace
         return 0;
     }
 
+
     void __fastcall FrameStageHook(void* instance, int stage)
     {
-        // TEMP: Confirm FrameStageHook is firing
-        static volatile LONG callbackCount = 0;
+        // TEMP: Confirm NET_UPDATE_END is being reached
+        static int stage6Count = 0;
 
-        LONG count = InterlockedIncrement(&callbackCount);
-
-        if (count <= 5)
+        if (stage == FRAME_STAGE_NET_UPDATE_END && stage6Count < 5)
         {
+            ++stage6Count;
+
             printf(
-                "[integration] FrameStageHook callback #%ld stage=%d\n",
-                count,
-                stage
+                "[integration] NET_UPDATE_END hit #%d\n",
+                stage6Count
             );
         }
 
+        // Always pass execution to the original function
         if (g_original)
             g_original(instance, stage);
 
+        // Only inspect the local pawn at NET_UPDATE_END
         if (stage != FRAME_STAGE_NET_UPDATE_END)
             return;
 
@@ -183,6 +185,7 @@ namespace
                 stage);
         }
     }
+
 }
 
 namespace GlovesIntegration

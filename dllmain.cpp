@@ -13,7 +13,7 @@
 #pragma comment(lib, "Psapi.lib")
 
 // ============================================================
-// v1.1.0a 
+// v1.1.1a 
 // n1ssan-gloves — Checkpoint 1
 // Resolve Loot's two glove functions.
 // No game memory writes.

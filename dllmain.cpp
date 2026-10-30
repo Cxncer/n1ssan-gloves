@@ -12,7 +12,7 @@
 #pragma comment(lib, "Psapi.lib")
 
 // ============================================================
-// v1.0.4a
+// v1.0.5a
 // n1ssan-gloves — Checkpoint 1
 // Resolve Loot's two glove functions.
 // No game memory writes.
@@ -24,30 +24,35 @@ using MemFreeFn = void(__fastcall*)(void* ptr);
 static MemAllocFn g_memAlloc = nullptr;
 static MemFreeFn g_memFree = nullptr;
 
-static void ResolveGameAllocator()
+void ResolveGameAllocator()
 {
     HMODULE tier0 = GetModuleHandleA("tier0.dll");
 
     if (!tier0)
     {
-        printf("[gloves] ERROR: tier0.dll not found\n");
+        printf("[gloves] tier0.dll NOT FOUND\n");
         return;
     }
 
-    printf("[gloves] tier0.dll=%p\n", tier0);
+    auto alloc = reinterpret_cast<Gloves::MemAllocFn>(
+        GetProcAddress(tier0, "MemAlloc_AllocFunc"));
 
-    // Do not register or initialize null allocator pointers.
-    g_memAlloc = nullptr;
-    g_memFree = nullptr;
+    auto free = reinterpret_cast<Gloves::MemFreeFn>(
+        GetProcAddress(tier0, "MemAlloc_FreeFunc"));
 
-    printf("[gloves] MemAlloc=%p\n",
-        reinterpret_cast<void*>(g_memAlloc));
+    if (!alloc || !free)
+    {
+        printf("[gloves] allocator resolution FAILED: alloc=%p free=%p\n",
+            reinterpret_cast<void*>(alloc),
+            reinterpret_cast<void*>(free));
+        return;
+    }
 
-    printf("[gloves] MemFree=%p\n",
-        reinterpret_cast<void*>(g_memFree));
+    Gloves::SetMemoryFunctions(alloc, free);
 
-    printf("[gloves] MemAlloc: NOT RESOLVED\n");
-    printf("[gloves] MemFree: NOT RESOLVED\n");
+    printf("[gloves] allocator READY: alloc=%p free=%p\n",
+        reinterpret_cast<void*>(alloc),
+        reinterpret_cast<void*>(free));
 }
 
 struct ModuleInfo

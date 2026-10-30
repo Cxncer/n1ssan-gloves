@@ -106,46 +106,56 @@ namespace
 
     SchemaSystem* GetSchemaSystem()
     {
-        const HMODULE module =
-            GetModuleHandleA("schemasystem.dll");
+        const HMODULE module = GetModuleHandleA("schemasystem.dll");
 
         printf("[schema] schemasystem.dll: %s (%p)\n",
-            module ? "FOUND" : "NOT FOUND",
-            module);
+            module ? "FOUND" : "NOT FOUND", module);
 
         if (!module)
             return nullptr;
 
-        const auto factory =
-            reinterpret_cast<CreateInterfaceFn>(
-                GetProcAddress(module, "CreateInterface"));
+        const auto factory = reinterpret_cast<CreateInterfaceFn>(
+            GetProcAddress(module, "CreateInterface"));
 
         printf("[schema] CreateInterface: %s (%p)\n",
-            factory ? "FOUND" : "NOT FOUND",
-            factory);
+            factory ? "FOUND" : "NOT FOUND", factory);
 
         if (!factory)
             return nullptr;
 
-        auto* schemaSystem =
-            static_cast<SchemaSystem*>(
-                factory("SchemaSystem_00", nullptr));
+        // Test exact interface names through the exported factory.
+        constexpr const char* candidates[] = {
+            "SchemaSystem_00",
+            "SchemaSystem_001",
+            "SchemaSystem_002",
+            "SchemaSystem_003",
+            "SchemaSystem_004",
+            "SchemaSystem_005",
+            "SchemaSystem_006",
+            "SchemaSystem_007",
+            "SchemaSystem_008",
+            "SchemaSystem_009",
+            "SchemaSystem_010"
+        };
 
-        printf("[schema] SchemaSystem_00: %s (%p)\n",
-            schemaSystem ? "FOUND" : "NOT FOUND",
-            schemaSystem);
-
-        if (schemaSystem)
+        for (const char* name : candidates)
         {
-            auto** vtable =
-                *reinterpret_cast<void***>(schemaSystem);
+            int returnCode = -1;
 
-            printf("[schema] vtable: %p\n", vtable);
-            printf("[schema] vtable[13]: %p\n",
-                vtable ? vtable[13] : nullptr);
+            void* result = factory(name, &returnCode);
+
+            printf("[schema] Probe %-20s result=%p returnCode=%d\n",
+                name, result, returnCode);
+
+            if (result)
+            {
+                printf("[schema] Interface acquired using: %s\n", name);
+                return static_cast<SchemaSystem*>(result);
+            }
         }
 
-        return schemaSystem;
+        printf("[schema] No candidate interface version was returned.\n");
+        return nullptr;
     }
 }
 

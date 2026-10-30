@@ -13,6 +13,12 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="config">
+      <UniqueIdentifier>{d602b113-9297-4479-9550-5b9e82e6cbb6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="gloves">
+      <UniqueIdentifier>{061a0135-336e-45b2-8014-80f18ba7f3e3}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="framework.h">
@@ -21,6 +27,30 @@
     <ClInclude Include="pch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="config\hardcoded_gloves.h">
+      <Filter>config</Filter>
+    </ClInclude>
+    <ClInclude Include="gloves\econ_item_attribute_manager.h">
+      <Filter>gloves</Filter>
+    </ClInclude>
+    <ClInclude Include="gloves\glove_functions.h">
+      <Filter>gloves</Filter>
+    </ClInclude>
+    <ClInclude Include="gloves\glove_config.h">
+      <Filter>gloves</Filter>
+    </ClInclude>
+    <ClInclude Include="gloves\glove_state.h">
+      <Filter>gloves</Filter>
+    </ClInclude>
+    <ClInclude Include="gloves\glove_runtime.h">
+      <Filter>gloves</Filter>
+    </ClInclude>
+    <ClInclude Include="gloves\glove_memory.h">
+      <Filter>gloves</Filter>
+    </ClInclude>
+    <ClInclude Include="gloves\glove_schema.h">
+      <Filter>gloves</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp">
@@ -28,6 +58,18 @@
     </ClCompile>
     <ClCompile Include="pch.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="gloves\econ_item_attribute_manager.cpp">
+      <Filter>gloves</Filter>
+    </ClCompile>
+    <ClCompile Include="gloves\glove_functions.cpp">
+      <Filter>gloves</Filter>
+    </ClCompile>
+    <ClCompile Include="gloves\glove_memory.cpp">
+      <Filter>gloves</Filter>
+    </ClCompile>
+    <ClCompile Include="gloves\glove_schema.cpp">
+      <Filter>gloves</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

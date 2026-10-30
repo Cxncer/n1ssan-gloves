@@ -5,6 +5,9 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include "gloves/glove_memory.h"
+#include "gloves/glove_schema.h"
+
 #pragma comment(lib, "Psapi.lib")
 
 // ============================================================
@@ -40,6 +43,11 @@ static void ResolveGameAllocator()
 
     g_memFree = reinterpret_cast<MemFreeFn>(
         GetProcAddress(tier0, "MemAlloc_FreeFunc"));
+
+    Gloves::SetMemoryFunctions(
+        reinterpret_cast<Gloves::MemAllocFn>(g_memAlloc),
+        reinterpret_cast<Gloves::MemFreeFn>(g_memFree)
+    );
 
     printf("[gloves] MemAlloc=%p\n",
         reinterpret_cast<void*>(g_memAlloc));
@@ -246,6 +254,20 @@ DWORD WINAPI ExperimentThread(LPVOID)
 
     ResolveGloveFunctions();
     ResolveGameAllocator();
+
+    const bool schemaReady = GlovesSchema::Initialize("client.dll");
+
+    printf("[gloves] Schema: %s\n",
+        schemaReady ? "READY" : "FAILED");
+
+    if (schemaReady)
+    {
+        printf("[gloves] C_EconItemView::m_AttributeList = 0x%X\n",
+            GlovesSchema::Get("C_EconItemView", "m_AttributeList"));
+
+        printf("[gloves] CAttributeList::m_Attributes = 0x%X\n",
+            GlovesSchema::Get("CAttributeList", "m_Attributes"));
+    }
 
     printf("[n1ssan-gloves] Checkpoint 1 complete\n");
     return 0;

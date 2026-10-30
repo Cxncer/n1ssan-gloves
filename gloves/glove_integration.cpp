@@ -139,6 +139,20 @@ namespace
 
     void __fastcall FrameStageHook(void* instance, int stage)
     {
+        // TEMP: Confirm FrameStageHook is firing
+        static volatile LONG callbackCount = 0;
+
+        LONG count = InterlockedIncrement(&callbackCount);
+
+        if (count <= 5)
+        {
+            printf(
+                "[integration] FrameStageHook callback #%ld stage=%d\n",
+                count,
+                stage
+            );
+        }
+
         if (g_original)
             g_original(instance, stage);
 

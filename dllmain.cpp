@@ -14,7 +14,7 @@
 #pragma comment(lib, "Psapi.lib")
 
 // ============================================================
-// v2.0.3b Verify against Loot - Agent-model Refresher
+// v2.0.4b Verify against Loot - Agent-model Refresher FIX
 // n1ssan-gloves — beta test
 // Resolve Loot's two glove functions.
 // **Must follow Lootline's Gloves Logic**

@@ -674,10 +674,6 @@ namespace
         if (g_original)
             g_original(instance, stage);
 
-        // Always call the original function.
-        if (g_original)
-            g_original(instance, stage);
-
         const uintptr_t pawn = GetLocalPawn();
         int32_t health = 0;
 

@@ -618,16 +618,24 @@ namespace
 
     bool GetEconItemMap(EconMap& map)
     {
+        map = {};
+
         void* source2Client =
             FindInterface("client.dll", "Source2Client002");
 
         if (!source2Client)
+        {
+            std::printf("[model-refresh] map: Source2Client002 unavailable\n");
             return false;
+        }
 
         void** vtable = *reinterpret_cast<void***>(source2Client);
 
         if (!vtable || !vtable[129])
+        {
+            std::printf("[model-refresh] map: vtable slot 129 unavailable\n");
             return false;
+        }
 
         using GetEconItemSystemFn =
             void* (__fastcall*)(void*);
@@ -642,11 +650,15 @@ namespace
         }
         __except (EXCEPTION_EXECUTE_HANDLER)
         {
+            std::printf("[model-refresh] map: GetEconItemSystem exception\n");
             return false;
         }
 
         if (!itemSystem)
+        {
+            std::printf("[model-refresh] map: item system is null\n");
             return false;
+        }
 
         std::uintptr_t schema = 0;
 
@@ -655,11 +667,37 @@ namespace
             sizeof(std::uintptr_t),
             schema) ||
             !schema)
+        {
+            std::printf("[model-refresh] map: schema pointer unavailable\n");
             return false;
+        }
 
-        return ReadMemory(
+        if (!ReadMemory(
             schema + ITEM_DEFINITION_MAP_OFFSET,
-            map);
+            map))
+        {
+            std::printf("[model-refresh] map: map read failed\n");
+            return false;
+        }
+
+        std::printf(
+            "[model-refresh] map acquired schema=%p count=%d "
+            "capacityFlags=0x%X elements=%p\n",
+            reinterpret_cast<void*>(schema),
+            map.count,
+            static_cast<unsigned>(map.capacityFlags),
+            static_cast<void*>(map.elements));
+
+        if (!map.elements || map.count <= 0 || map.count > 10000)
+        {
+            std::printf(
+                "[model-refresh] map invalid count=%d elements=%p\n",
+                map.count,
+                static_cast<void*>(map.elements));
+            return false;
+        }
+
+        return true;
     }
 
     std::string FindAlternateAgentModel(
@@ -668,23 +706,31 @@ namespace
     {
         EconMap map{};
 
-        if (!GetEconItemMap(map) ||
-            !map.elements ||
-            map.count <= 0 ||
-            map.count > 10000)
+        if (!GetEconItemMap(map))
+        {
+            std::printf(
+                "[model-refresh] discovery aborted: map unavailable\n");
             return {};
+        }
+
+        int customPlayerCount = 0;
+        int terroristCount = 0;
+        int counterTerroristCount = 0;
+        int familyCount = 0;
+        int existingModelCount = 0;
 
         for (int i = 0; i < map.count; ++i)
         {
             void* definition = nullptr;
 
             if (!ReadMemory(
-                reinterpret_cast<std::uintptr_t>(
-                    &map.elements[i]) +
+                reinterpret_cast<std::uintptr_t>(&map.elements[i]) +
                 offsetof(EconMapNode, value),
                 definition) ||
                 !definition)
+            {
                 continue;
+            }
 
             const char* typeNamePtr = nullptr;
             const char* itemNamePtr = nullptr;
@@ -699,7 +745,9 @@ namespace
                 !ReadMemory(
                     reinterpret_cast<std::uintptr_t>(definition) + 0x148,
                     schemaModelPtr))
+            {
                 continue;
+            }
 
             std::string typeName;
             std::string itemName;
@@ -713,20 +761,33 @@ namespace
                 !ReadString(
                     reinterpret_cast<std::uintptr_t>(itemNamePtr),
                     itemName))
+            {
                 continue;
+            }
 
             if (typeName != "#Type_CustomPlayer")
                 continue;
 
+            ++customPlayerCount;
+
+            // Correct prefix matching: actual lengths are 16 and 17.
             const bool terrorist =
-                itemName.compare(0, 15, "customplayer_tm_") == 0;
+                itemName.rfind("customplayer_tm_", 0) == 0;
 
             const bool counterTerrorist =
-                itemName.compare(0, 16, "customplayer_ctm_") == 0;
+                itemName.rfind("customplayer_ctm_", 0) == 0;
+
+            if (terrorist)
+                ++terroristCount;
+
+            if (counterTerrorist)
+                ++counterTerroristCount;
 
             if ((team == 2 && !terrorist) ||
                 (team == 3 && !counterTerrorist))
+            {
                 continue;
+            }
 
             if (schemaModelPtr)
             {
@@ -743,6 +804,8 @@ namespace
 
             if (!family.empty())
             {
+                ++familyCount;
+
                 const std::string candidate =
                     "agents/models/" +
                     family +
@@ -753,22 +816,83 @@ namespace
                 const std::string compiled =
                     candidate + "_c";
 
-                if (candidate != currentModel &&
-                    FileExists(compiled.c_str()))
+                const bool exists =
+                    FileExists(compiled.c_str());
+
+                std::printf(
+                    "[model-refresh] candidate team=%d item=%s "
+                    "family=%s model=%s compiled=%d current=%d\n",
+                    team,
+                    itemName.c_str(),
+                    family.c_str(),
+                    candidate.c_str(),
+                    exists,
+                    candidate == currentModel);
+
+                if (exists)
+                    ++existingModelCount;
+
+                if (candidate != currentModel && exists)
+                {
+                    std::printf(
+                        "[model-refresh] selected candidate: %s\n",
+                        candidate.c_str());
+
                     return candidate;
+                }
+            }
+            else
+            {
+                std::printf(
+                    "[model-refresh] no family: item=%s schemaModel=%s\n",
+                    itemName.c_str(),
+                    schemaModel.c_str());
             }
 
-            // Only accept an already-canonical schema path as fallback.
-            if (schemaModel.compare(0, 14, "agents/models/") == 0)
+            // Keep the existing canonical schema-model fallback.
+            if (schemaModel.rfind("agents/models/", 0) == 0)
             {
                 const std::string compiled =
                     schemaModel + "_c";
 
-                if (schemaModel != currentModel &&
-                    FileExists(compiled.c_str()))
+                const bool exists =
+                    FileExists(compiled.c_str());
+
+                std::printf(
+                    "[model-refresh] schema fallback team=%d "
+                    "item=%s model=%s compiled=%d current=%d\n",
+                    team,
+                    itemName.c_str(),
+                    schemaModel.c_str(),
+                    exists,
+                    schemaModel == currentModel);
+
+                if (exists)
+                    ++existingModelCount;
+
+                if (schemaModel != currentModel && exists)
+                {
+                    std::printf(
+                        "[model-refresh] selected schema fallback: %s\n",
+                        schemaModel.c_str());
+
                     return schemaModel;
+                }
             }
         }
+
+        std::printf(
+            "[model-refresh] discovery summary team=%d "
+            "mapCount=%d customPlayers=%d T=%d CT=%d "
+            "families=%d existingModels=%d current=%s\n",
+            team,
+            map.count,
+            customPlayerCount,
+            terroristCount,
+            counterTerroristCount,
+            familyCount,
+            existingModelCount,
+            currentModel.c_str());
 
         return {};
     }

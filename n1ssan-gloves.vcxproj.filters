@@ -81,4 +81,7 @@
       <Filter>gloves</Filter>
     </ClCompile>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="logs.md" />
+  </ItemGroup>
 </Project>

@@ -91,7 +91,8 @@ namespace
             attributeList + attributesOffset);
 
         std::printf(
-            "[attr] vector resolved item=%p vector=%p listOffset=0x%X attributesOffset=0x%X\n",
+            "[attr] vector resolved item=%p vector=%p "
+            "listOffset=0x%X attributesOffset=0x%X\n",
             static_cast<void*>(item),
             static_cast<void*>(vector),
             listOffset,
@@ -113,7 +114,7 @@ namespace
 
 namespace EconItemAttributeManager
 {
-    void Create(
+    bool Create(
         C_EconItemView* item,
         int paintKit,
         float wear,
@@ -121,24 +122,27 @@ namespace EconItemAttributeManager
     {
         std::printf(
             "[attr] Create ENTER item=%p paint=%d wear=%.6f seed=%d\n",
-            static_cast<void*>(item), paintKit, wear, seed);
+            static_cast<void*>(item),
+            paintKit,
+            wear,
+            seed);
 
         if (!item)
         {
             std::printf("[attr] Create ABORT: null item\n");
-            return;
+            return false;
         }
 
         if (!Gloves::MemoryReady())
         {
             std::printf("[attr] Create ABORT: allocator not ready\n");
-            return;
+            return false;
         }
 
         if (paintKit <= 0)
         {
             std::printf("[attr] Create ABORT: invalid paintKit\n");
-            return;
+            return false;
         }
 
         AttributeVector* vector = GetAttributeVector(item);
@@ -146,7 +150,7 @@ namespace EconItemAttributeManager
         if (!vector)
         {
             std::printf("[attr] Create ABORT: vector lookup failed\n");
-            return;
+            return false;
         }
 
         std::lock_guard<std::mutex> lock(g_attributeMutex);
@@ -161,13 +165,14 @@ namespace EconItemAttributeManager
         if (vector->size != 0 || vector->data != 0)
         {
             std::printf("[attr] Create ABORT: vector already populated\n");
-            return;
+            return false;
         }
 
-        if (g_ownedAttributes.find(item) != g_ownedAttributes.end())
+        if (g_ownedAttributes.find(item) !=
+            g_ownedAttributes.end())
         {
             std::printf("[attr] Create ABORT: item already owned\n");
-            return;
+            return false;
         }
 
         constexpr std::size_t capacity =
@@ -187,20 +192,24 @@ namespace EconItemAttributeManager
         if (!attributes)
         {
             std::printf("[attr] Create ABORT: allocation failed\n");
-            return;
+            return false;
         }
 
         std::memset(attributes, 0, allocationSize);
 
         SetFloatAttribute(
-            attributes[0], ATTR_PAINT, static_cast<float>(paintKit));
+            attributes[0],
+            ATTR_PAINT,
+            static_cast<float>(paintKit));
 
         SetFloatAttribute(
-            attributes[1], ATTR_SEED,
+            attributes[1],
+            ATTR_SEED,
             static_cast<float>(seed < 0 ? 0 : seed));
 
         SetFloatAttribute(
-            attributes[2], ATTR_WEAR,
+            attributes[2],
+            ATTR_WEAR,
             wear < 0.0f ? 0.01f : wear);
 
         try
@@ -210,31 +219,49 @@ namespace EconItemAttributeManager
 
             if (!result.second)
             {
-                std::printf("[attr] Create ABORT: ownership registration failed\n");
+                std::printf(
+                    "[attr] Create ABORT: "
+                    "ownership registration failed\n");
+
                 Gloves::Free(attributes);
-                return;
+                return false;
             }
         }
         catch (...)
         {
-            std::printf("[attr] Create ABORT: ownership registration exception\n");
+            std::printf(
+                "[attr] Create ABORT: "
+                "ownership registration exception\n");
+
             Gloves::Free(attributes);
-            return;
+            return false;
         }
 
-        vector->size = static_cast<std::int32_t>(ATTRIBUTE_COUNT);
+        vector->size =
+            static_cast<std::int32_t>(ATTRIBUTE_COUNT);
+
         vector->pad = 0;
-        vector->data = reinterpret_cast<std::uintptr_t>(attributes);
-        vector->allocationCount = static_cast<std::int32_t>(capacity);
-        vector->growSizeAndFlags = VECTOR_FIXED_FLAGS;
+
+        vector->data =
+            reinterpret_cast<std::uintptr_t>(attributes);
+
+        vector->allocationCount =
+            static_cast<std::int32_t>(capacity);
+
+        vector->growSizeAndFlags =
+            VECTOR_FIXED_FLAGS;
 
         std::printf(
-            "[attr] Create SUCCESS item=%p data=%p size=%d capacity=%d flags=0x%X\n",
+            "[attr] Create SUCCESS item=%p data=%p "
+            "size=%d capacity=%d flags=0x%X\n",
             static_cast<void*>(item),
             static_cast<void*>(attributes),
             vector->size,
             vector->allocationCount,
-            static_cast<unsigned>(vector->growSizeAndFlags));
+            static_cast<unsigned>(
+                vector->growSizeAndFlags));
+
+        return true;
     }
 
     void Remove(C_EconItemView* item)
@@ -251,7 +278,9 @@ namespace EconItemAttributeManager
 
         if (!Gloves::MemoryReady())
         {
-            std::printf("[attr] Remove ABORT: allocator not ready\n");
+            std::printf(
+                "[attr] Remove ABORT: allocator not ready\n");
+
             return;
         }
 
@@ -259,32 +288,42 @@ namespace EconItemAttributeManager
 
         if (!vector)
         {
-            std::printf("[attr] Remove ABORT: vector lookup failed\n");
+            std::printf(
+                "[attr] Remove ABORT: vector lookup failed\n");
+
             return;
         }
 
         std::lock_guard<std::mutex> lock(g_attributeMutex);
 
-        const auto it = g_ownedAttributes.find(item);
+        const auto it =
+            g_ownedAttributes.find(item);
 
         std::printf(
             "[attr] Remove current size=%d data=%p owned=%s\n",
             vector->size,
             reinterpret_cast<void*>(vector->data),
-            it != g_ownedAttributes.end() ? "YES" : "NO");
+            it != g_ownedAttributes.end()
+            ? "YES"
+            : "NO");
 
         if (it == g_ownedAttributes.end())
         {
-            std::printf("[attr] Remove ABORT: no owned allocation\n");
+            std::printf(
+                "[attr] Remove ABORT: no owned allocation\n");
+
             return;
         }
 
-        EconItemAttribute* ownedMemory = it->second;
+        EconItemAttribute* ownedMemory =
+            it->second;
 
-        if (vector->data != reinterpret_cast<std::uintptr_t>(ownedMemory))
+        if (vector->data !=
+            reinterpret_cast<std::uintptr_t>(ownedMemory))
         {
             std::printf(
-                "[attr] Remove ABORT: ownership mismatch vector=%p owned=%p\n",
+                "[attr] Remove ABORT: ownership mismatch "
+                "vector=%p owned=%p\n",
                 reinterpret_cast<void*>(vector->data),
                 static_cast<void*>(ownedMemory));
 
@@ -302,7 +341,8 @@ namespace EconItemAttributeManager
         Gloves::Free(ownedMemory);
 
         std::printf(
-            "[attr] Remove RELEASE INVOKED item=%p allocation=%p\n",
+            "[attr] Remove RELEASE INVOKED "
+            "item=%p allocation=%p\n",
             static_cast<void*>(item),
             static_cast<void*>(ownedMemory));
     }

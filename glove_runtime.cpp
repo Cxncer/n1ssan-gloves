@@ -1,4 +1,3 @@
-
 #include "glove_runtime.h"
 #include "glove_state.h"
 #include "glove_config.h"
@@ -13,15 +12,12 @@ namespace
     constexpr int CLEAR_FRAMES = 2;
     constexpr std::uint64_t OWN_FLAG_FRAMES = 3;
 
-    constexpr std::uint64_t FOLLOW_UP_DELAYS_MS[] =
+    constexpr ULONGLONG FOLLOW_UP_DELAYS_MS[] =
     {
-        400, 1200, 3000
+        400,
+        1200,
+        3000
     };
-
-    bool IsDefaultDefinition(std::uint16_t definition)
-    {
-        return definition == 5028 || definition == 5029;
-    }
 
     std::uint16_t DefaultDefinition(int team)
     {
@@ -50,17 +46,16 @@ namespace Gloves
 
         ActiveConfig config = GetConfigForTeam(context.team);
 
-        bool customSelection =
+        const bool customSelection =
             config.enabled && config.definitionIndex != 0;
 
-        // If custom gloves were previously active but are now disabled,
-        // restore the team's normal glove definition.
         if (!customSelection)
         {
             if (!state.appliedCustomGloves)
                 return;
 
-            config.definitionIndex = DefaultDefinition(context.team);
+            config.definitionIndex =
+                DefaultDefinition(context.team);
 
             if (!config.definitionIndex)
                 return;
@@ -70,8 +65,11 @@ namespace Gloves
             config.wear = 0.0001f;
         }
 
-        config.seed = (std::clamp)(config.seed, 0, 1000);
-        config.wear = (std::clamp)(config.wear, 0.0001f, 1.0f);
+        config.seed =
+            (std::clamp)(config.seed, 0, 1000);
+
+        config.wear =
+            (std::clamp)(config.wear, 0.0001f, 1.0f);
 
         const ULONGLONG now = GetTickCount64();
 
@@ -85,31 +83,33 @@ namespace Gloves
             state.lastTeam != 0xFF &&
             context.team != state.lastTeam;
 
-        const bool spawnChanged =
-            context.spawnTime != state.lastSpawnTime ||
+        const bool pawnChanged =
             context.pawn != state.lastPawn;
+
+        const bool spawnChanged =
+            context.spawnTime != state.lastSpawnTime;
 
         const bool flagRaisedByGame =
             context.needReapply &&
-            state.frame - state.lastWriteFrame > OWN_FLAG_FRAMES;
+            state.frame - state.lastWriteFrame >
+            OWN_FLAG_FRAMES;
 
-        const bool idLost =
-            !IsDefaultDefinition(config.definitionIndex) &&
-            context.itemIdHigh != 0xFFFFFFFFu;
-
-        const bool engineReset =
+        const bool itemWasReset =
             customSelection &&
             (
-                context.currentDefinition != config.definitionIndex ||
+                context.currentDefinition !=
+                config.definitionIndex ||
                 !context.initialized ||
-                idLost ||
+                context.itemIdHigh != 0xFFFFFFFFu ||
                 flagRaisedByGame
                 );
 
-        // Schedule spawn follow-ups independently of the apply cache.
-        if (context.spawnTime != state.followUpSpawnTime)
+        if (context.spawnTime !=
+            state.followUpSpawnTime)
         {
-            state.followUpSpawnTime = context.spawnTime;
+            state.followUpSpawnTime =
+                context.spawnTime;
+
             state.spawnSeenAt = now;
             state.followUpIndex = 0;
         }
@@ -130,19 +130,21 @@ namespace Gloves
 
         if (configChanged ||
             teamChanged ||
+            pawnChanged ||
             spawnChanged ||
-            engineReset ||
+            itemWasReset ||
             followUp)
         {
             state.updateFrames = APPLY_FRAMES;
         }
 
-        // A team change first clears the old team's glove item.
         if (state.clearFrames > 0)
         {
             if (!ClearGloveItem(context))
             {
-                std::printf("[runtime] ClearGloveItem FAILED\n");
+                std::printf(
+                    "[runtime] ClearGloveItem FAILED\n");
+
                 state.clearFrames = 0;
                 return;
             }
@@ -152,11 +154,8 @@ namespace Gloves
 
             state.lastDefinition = 0;
             state.lastPaintKit = -1;
-            state.lastTeam = static_cast<std::uint8_t>(context.team);
-
-            std::printf(
-                "[runtime] Team-switch clear remaining=%d\n",
-                state.clearFrames);
+            state.lastSeed = -1;
+            state.lastWear = -1.0f;
 
             return;
         }
@@ -172,11 +171,11 @@ namespace Gloves
             config.wear))
         {
             std::printf(
-                "[runtime] APPLY FAILED def=%u paint=%d\n",
+                "[runtime] APPLY FAILED "
+                "def=%u paint=%d\n",
                 config.definitionIndex,
                 config.paintKit);
 
-            // Don't hammer a failed allocation/function every frame.
             state.updateFrames = 0;
             return;
         }
@@ -190,13 +189,15 @@ namespace Gloves
         state.lastSeed = config.seed;
         state.lastWear = config.wear;
         state.lastSpawnTime = context.spawnTime;
-        state.lastTeam = static_cast<std::uint8_t>(context.team);
+        state.lastTeam =
+            static_cast<std::uint8_t>(context.team);
 
-        state.appliedCustomGloves = customSelection;
+        state.appliedCustomGloves =
+            customSelection;
 
         std::printf(
-            "[runtime] APPLY frame=%llu remaining=%d pawn=%p def=%u paint=%d\n",
-            static_cast<unsigned long long>(state.frame),
+            "[runtime] APPLY remaining=%d "
+            "pawn=%p def=%u paint=%d\n",
             state.updateFrames,
             context.pawn,
             config.definitionIndex,

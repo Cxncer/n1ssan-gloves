@@ -15,6 +15,11 @@ namespace Gloves
         int health = 0;
         float spawnTime = 0.0f;
 
+        std::uint16_t currentDefinition = 0;
+        std::uint32_t itemIdHigh = 0;
+        bool initialized = false;
+        bool needReapply = false;
+
         bool valid = false;
     };
 

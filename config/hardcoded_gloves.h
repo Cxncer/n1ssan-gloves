@@ -15,7 +15,7 @@ namespace HardcodedGloves
     // T-side: Sport Gloves | Blaze
     inline constexpr GloveSelection T =
     {
-        5028,
+        5030,
         1407,
         0,
         0.10f
@@ -24,7 +24,7 @@ namespace HardcodedGloves
     // CT-side: Specialist Gloves | Cloud Chaser
     inline constexpr GloveSelection CT =
     {
-        5032,
+        5034,
         1440,
         0,
         0.10f

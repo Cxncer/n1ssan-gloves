@@ -9,14 +9,15 @@
 #include "gloves/glove_schema.h"
 #include "gloves/glove_functions.h"
 #include "gloves/glove_integration.h"
+#include "gloves/glove_paintkit_schema.h"
 
 #pragma comment(lib, "Psapi.lib")
 
 // ============================================================
-// v1.2.8a Checkpoint 2A-2E - if (configchanged)
-// n1ssan-gloves — Checkpoint 1
+// v2.0.0b Verify against Loot
+// n1ssan-gloves — beta test
 // Resolve Loot's two glove functions.
-// No game memory writes.
+// **Must follow Lootline's Gloves Logic**
 // ============================================================
 
 
@@ -246,6 +247,12 @@ DWORD WINAPI ExperimentThread(LPVOID)
 
     GloveFunctions::SetCreatePaintKit(g_createPaintKit);
     GloveFunctions::SetSetBodyGroup(g_setBodyGroup);
+
+    const bool paintKitSchemaReady =
+        GlovePaintKitSchema::Initialize();
+
+    printf("[paintkit-schema] %s\n",
+        paintKitSchemaReady ? "READY" : "FAILED");
 
     printf("[gloves] Function table: %s\n",
         GloveFunctions::GetCreatePaintKit() &&

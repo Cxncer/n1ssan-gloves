@@ -148,6 +148,7 @@
     <ClInclude Include="gloves\glove_functions.h" />
     <ClInclude Include="gloves\glove_integration.h" />
     <ClInclude Include="gloves\glove_memory.h" />
+    <ClInclude Include="gloves\glove_paintkit_schema.h" />
     <ClInclude Include="gloves\glove_runtime.h" />
     <ClInclude Include="gloves\glove_schema.h" />
     <ClInclude Include="gloves\glove_state.h" />
@@ -161,6 +162,7 @@
     </ClCompile>
     <ClCompile Include="gloves\glove_integration.cpp" />
     <ClCompile Include="gloves\glove_memory.cpp" />
+    <ClCompile Include="gloves\glove_paintkit_schema.cpp" />
     <ClCompile Include="gloves\glove_schema.cpp" />
     <ClCompile Include="gloves\glove_runtime.cpp" />
     <ClCompile Include="pch.cpp">

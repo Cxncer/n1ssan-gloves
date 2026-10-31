@@ -3,6 +3,7 @@
 #include "glove_schema.h"
 #include "glove_functions.h"
 #include "econ_item_attribute_manager.h"
+#include "glove_paintkit_schema.h"
 
 #include <Windows.h>
 #include <Psapi.h>
@@ -716,21 +717,20 @@ namespace Gloves
 
 namespace
 {
-    bool CallCreatePaintKit(void* item)
+    CPaintKit* CallCreatePaintKit(void* item)
     {
         const auto fn = GloveFunctions::GetCreatePaintKit();
 
         if (!fn || !item)
-            return false;
+            return nullptr;
 
         __try
         {
-            fn(item);
-            return true;
+            return fn(item);
         }
         __except (EXCEPTION_EXECUTE_HANDLER)
         {
-            return false;
+            return nullptr;
         }
     }
 
@@ -814,11 +814,21 @@ namespace Gloves
                 return false;
             }
 
-            // 4. Ask the engine to construct the paint kit.
-            if (!CallCreatePaintKit(item))
+            // 4. Construct the paint kit and validate its generated name.
+            CPaintKit* generatedPaintKit = CallCreatePaintKit(item);
+
+            if (!generatedPaintKit)
             {
                 printf("[gloves] CreatePaintKit call FAILED\n");
                 return false;
+            }
+
+            if (!GlovePaintKitSchema::RepairGeneratedName(
+                generatedPaintKit, paintKit))
+            {
+                printf(
+                    "[gloves] PaintKit name repair unavailable: paint=%d\n",
+                    paintKit);
             }
         }
 

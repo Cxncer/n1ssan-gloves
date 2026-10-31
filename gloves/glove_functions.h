@@ -1,8 +1,22 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 
-using GloveCreatePaintKitFn = void* (__fastcall*)(void* item);
+struct CPaintKit
+{
+    int m_ID;
+    std::uint32_t m_Pad04;
+    const char* m_Name;
+    const char* m_DescriptionString;
+    const char* m_DescriptionTag;
+    std::byte m_Pad20[0x24];
+    int m_Rarity;
+    std::byte m_Pad48[0x66];
+    bool m_UsesOldModel;
+};
+
+using GloveCreatePaintKitFn = CPaintKit * (__fastcall*)(void* item);
 
 using GloveSetBodyGroupFn = void(__fastcall*)(
     void* pawn,
@@ -20,5 +34,4 @@ namespace GloveFunctions
 
     GloveCreatePaintKitFn GetCreatePaintKit();
     GloveSetBodyGroupFn GetSetBodyGroup();
-
 }

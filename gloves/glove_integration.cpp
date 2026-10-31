@@ -576,75 +576,139 @@ namespace Gloves
     {
         context = {};
 
+        // 1. Resolve the pawn through the working entity-system path.
         const uintptr_t pawnAddress = GetLocalPawn();
 
         if (!pawnAddress)
             return false;
 
-        void* pawn = reinterpret_cast<void*>(pawnAddress);
+        context.pawn = reinterpret_cast<void*>(pawnAddress);
 
-        int health = 0;
-        int team = 0;
+        // 2. Read the pawn's actual gameplay state.
+        int32_t health = 0;
+        uint8_t team = 0;
         float spawnTime = 0.0f;
 
-        std::uint16_t currentDefinition = 0;
-        std::uint32_t itemIdHigh = 0;
-        bool initialized = false;
-        bool needReapply = false;
+        const bool healthOK = ReadField(
+            context.pawn,
+            "C_BaseEntity",
+            "m_iHealth",
+            health);
 
-        if (!ReadField(
-            context.gloveItem,
-            "C_EconItemView",
-            "m_iItemDefinitionIndex",
-            context.currentDefinition) ||
-            !ReadField(
-                context.gloveItem,
-                "C_EconItemView",
-                "m_iItemIDHigh",
-                context.itemIdHigh) ||
-            !ReadField(
-                context.gloveItem,
-                "C_EconItemView",
-                "m_bInitialized",
-                context.initialized) ||
-            !ReadField(
-                context.pawn,
-                "C_CSPlayerPawn",
-                "m_bNeedToReApplyGloves",
-                context.needReapply))
+        const bool teamOK = ReadField(
+            context.pawn,
+            "C_BaseEntity",
+            "m_iTeamNum",
+            team);
+
+        const bool spawnOK = ReadField(
+            context.pawn,
+            "C_CSPlayerPawnBase",
+            "m_flLastSpawnTimeIndex",
+            spawnTime);
+
+        if (!healthOK || !teamOK || !spawnOK)
         {
+            static bool logged = false;
+
+            if (!logged)
+            {
+                printf(
+                    "[gloves] GetGameContext: pawn fields missing "
+                    "health=%d team=%d spawn=%d\n",
+                    healthOK,
+                    teamOK,
+                    spawnOK);
+
+                logged = true;
+            }
+
             context = {};
             return false;
         }
 
+        context.health = health;
+        context.team = static_cast<int>(team);
+        context.spawnTime = spawnTime;
+
+        // 3. Resolve the inline glove item.
         uint32_t gloveOffset = 0;
 
         if (!GlovesSchema::TryGet(
-            "C_CSPlayerPawn", "m_EconGloves", gloveOffset))
+            "C_CSPlayerPawn",
+            "m_EconGloves",
+            gloveOffset))
         {
             printf("[gloves] ERROR: m_EconGloves missing\n");
+            context = {};
             return false;
         }
 
+        context.gloveItem = reinterpret_cast<void*>(
+            pawnAddress + gloveOffset);
+
+        // 4. Read the glove item's current state.
+        const bool definitionOK = ReadField(
+            context.gloveItem,
+            "C_EconItemView",
+            "m_iItemDefinitionIndex",
+            context.currentDefinition);
+
+        const bool itemIdOK = ReadField(
+            context.gloveItem,
+            "C_EconItemView",
+            "m_iItemIDHigh",
+            context.itemIdHigh);
+
+        const bool initializedOK = ReadField(
+            context.gloveItem,
+            "C_EconItemView",
+            "m_bInitialized",
+            context.initialized);
+
+        const bool reapplyOK = ReadField(
+            context.pawn,
+            "C_CSPlayerPawn",
+            "m_bNeedToReApplyGloves",
+            context.needReapply);
+
+        if (!definitionOK || !itemIdOK ||
+            !initializedOK || !reapplyOK)
+        {
+            static bool logged = false;
+
+            if (!logged)
+            {
+                printf(
+                    "[gloves] GetGameContext: item fields missing "
+                    "definition=%d itemId=%d initialized=%d reapply=%d\n",
+                    definitionOK,
+                    itemIdOK,
+                    initializedOK,
+                    reapplyOK);
+
+                logged = true;
+            }
+
+            context = {};
+            return false;
+        }
+
+        // 5. Controller is optional; it is only used for account ID.
         uintptr_t controller = 0;
 
         if (g_localControllerGlobal)
             Read(g_localControllerGlobal, controller);
 
-        context.pawn = pawn;
-        context.controller = reinterpret_cast<void*>(controller);
+        if (controller > 0x10000)
+            context.controller = reinterpret_cast<void*>(controller);
 
-        context.gloveItem = reinterpret_cast<void*>(
-            pawnAddress + gloveOffset);
-
-        context.health = health;
-        context.team = team;
-        context.spawnTime = spawnTime;
-
+        // 6. Final validation.
         context.valid =
+            context.pawn != nullptr &&
             context.gloveItem != nullptr &&
-            health > 0 &&
-            (team == 2 || team == 3);
+            context.health > 0 &&
+            (context.team == 2 || context.team == 3);
 
         return context.valid;
     }

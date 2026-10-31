@@ -12,33 +12,28 @@ namespace HardcodedGloves
         float wear;
     };
 
-    // CS2 default glove definitions.
-    inline constexpr std::uint16_t DEFAULT_T_GLOVES = 5028;
-    inline constexpr std::uint16_t DEFAULT_CT_GLOVES = 5029;
-
-    // TODO: Replace paintKit values with the exact finishes we select.
-    // A paintKit of 0 means use the glove definition without a custom finish.
+    // T-side: Sport Gloves | Blaze
     inline constexpr GloveSelection T =
     {
-        DEFAULT_T_GLOVES,
-        0,          // paint kit
-        0,          // seed
-        0.0001f     // wear
+        5028,
+        1407,
+        0,
+        0.10f
     };
 
+    // CT-side: Specialist Gloves | Cloud Chaser
     inline constexpr GloveSelection CT =
     {
-        DEFAULT_CT_GLOVES,
-        0,          // paint kit
-        0,          // seed
-        0.0001f     // wear
+        5032,
+        1440,
+        0,
+        0.10f
     };
 
     inline constexpr bool ENABLED = true;
 
     constexpr const GloveSelection& ForTeam(int team)
     {
-        // CS2: T = 2, CT = 3.
         return team == 2 ? T : CT;
     }
 }

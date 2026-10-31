@@ -95,10 +95,9 @@ namespace Gloves
             OWN_FLAG_FRAMES;
 
         const uint32_t expectedItemIdHigh =
-            (config.definitionIndex == 5028 ||
-                config.definitionIndex == 5029)
-            ? 0u
-            : 0xFFFFFFFFu;
+            config.paintKit > 0
+            ? 0xFFFFFFFFu
+            : 0u;
 
         const bool itemWasReset =
             customSelection &&

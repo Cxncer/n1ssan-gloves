@@ -819,9 +819,9 @@ namespace Gloves
 
         // 5. Preserve the low item ID; mark custom items with high = FFFFFFFF.
         const uint32_t itemIdHigh =
-            (definitionIndex == 5028 || definitionIndex == 5029)
-            ? 0u
-            : 0xFFFFFFFFu;
+            paintKit > 0
+            ? 0xFFFFFFFFu
+            : 0u;
 
         if (!WriteField(
             item, "C_EconItemView",

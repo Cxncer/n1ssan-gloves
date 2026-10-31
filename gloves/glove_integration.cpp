@@ -16,7 +16,7 @@ namespace
 {
     using FrameStageFn = void(__fastcall*)(void*, int);
 
-    constexpr int FRAME_STAGE_NET_UPDATE_END = 6;
+    constexpr int FRAME_STAGE_NET_UPDATE_END = 7;
 
     constexpr uintptr_t OFFSET_CONTROLLER_PAWN = 0x92C;
     constexpr uintptr_t OFFSET_HEALTH = 0x34C;
@@ -417,27 +417,27 @@ namespace
 
     void __fastcall FrameStageHook(void* instance, int stage)
     {
-        // TEMP: Confirm NET_UPDATE_END is being reached
-        static int stage6Count = 0;
-
-        if (stage == FRAME_STAGE_NET_UPDATE_END && stage6Count < 5)
-        {
-            ++stage6Count;
-
-            printf(
-                "[integration] NET_UPDATE_END hit #%d\n",
-                stage6Count
-            );
-        }
-
-        // Always pass execution to the original function
-        if (g_original)
-            g_original(instance, stage);
+        static int netUpdateEndCount = 0;
 
         if (stage == FRAME_STAGE_NET_UPDATE_END)
         {
+            if (netUpdateEndCount < 5)
+            {
+                ++netUpdateEndCount;
+                printf(
+                    "[integration] NET_UPDATE_END(stage=%d) hit #%d\n",
+                    stage,
+                    netUpdateEndCount
+                );
+            }
+
+            // Match Lootline: update before the original engine processing.
             Gloves::Update();
         }
+
+        // Always call the original function.
+        if (g_original)
+            g_original(instance, stage);
 
         const uintptr_t pawn = GetLocalPawn();
 

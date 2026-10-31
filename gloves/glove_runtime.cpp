@@ -138,7 +138,11 @@ namespace Gloves
         }
 
         if (teamChanged)
+        {
             state.clearFrames = CLEAR_FRAMES;
+            state.lastTeam =
+                static_cast<std::uint8_t>(context.team);
+        }
 
         if (configChanged ||
             teamChanged ||

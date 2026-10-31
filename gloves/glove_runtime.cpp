@@ -151,6 +151,24 @@ namespace Gloves
             itemWasReset ||
             followUp)
         {
+            printf(
+                "[runtime] TRIGGER team=%d def=%u current=%u "
+                "idHigh=%08X expected=%08X init=%d reapply=%d "
+                "config=%d team=%d pawn=%d spawn=%d reset=%d follow=%d\n",
+                context.team,
+                config.definitionIndex,
+                context.currentDefinition,
+                context.itemIdHigh,
+                expectedItemIdHigh,
+                context.initialized,
+                context.needReapply,
+                configChanged,
+                teamChanged,
+                pawnChanged,
+                spawnChanged,
+                itemWasReset,
+                followUp);
+
             state.updateFrames = APPLY_FRAMES;
         }
 

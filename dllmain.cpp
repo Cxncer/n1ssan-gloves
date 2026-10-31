@@ -13,7 +13,7 @@
 #pragma comment(lib, "Psapi.lib")
 
 // ============================================================
-// v1.2.7a Checkpoint 2A-2E - if (teamchanged)
+// v1.2.8a Checkpoint 2A-2E - if (configchanged)
 // n1ssan-gloves — Checkpoint 1
 // Resolve Loot's two glove functions.
 // No game memory writes.

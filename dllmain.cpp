@@ -14,7 +14,7 @@
 #pragma comment(lib, "Psapi.lib")
 
 // ============================================================
-// v2.0.0b Verify against Loot
+// v2.0.1b Verify against Loot - Schema Offset
 // n1ssan-gloves — beta test
 // Resolve Loot's two glove functions.
 // **Must follow Lootline's Gloves Logic**

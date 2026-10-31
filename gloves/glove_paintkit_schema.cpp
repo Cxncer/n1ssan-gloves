@@ -52,6 +52,59 @@ namespace
         return copy;
     }
 
+    struct InterfaceReg
+    {
+        using CreateFn = void* (*)();
+
+        CreateFn create;
+        const char* name;
+        InterfaceReg* next;
+    };
+
+    void* GetLootInterface(
+        const char* moduleName,
+        const char* partialVersion)
+    {
+        HMODULE module = GetModuleHandleA(moduleName);
+        if (!module)
+            return nullptr;
+
+        const auto symbol = reinterpret_cast<std::uintptr_t>(
+            GetProcAddress(module, "CreateInterface"));
+
+        if (!symbol)
+            return nullptr;
+
+        __try
+        {
+            const auto displacement =
+                *reinterpret_cast<const std::int32_t*>(symbol + 3);
+
+            const auto listAddress =
+                symbol + displacement + 7;
+
+            InterfaceReg* current =
+                *reinterpret_cast<InterfaceReg**>(listAddress);
+
+            for (; current; current = current->next)
+            {
+                if (current->name &&
+                    std::strstr(current->name, partialVersion))
+                {
+                    return current->create
+                        ? current->create()
+                        : nullptr;
+                }
+            }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            return nullptr;
+        }
+
+        return nullptr;
+    }
+
     std::uint32_t ResolveMapOffset()
     {
         const auto fn = GloveFunctions::GetCreatePaintKit();
@@ -119,18 +172,8 @@ namespace GlovePaintKitSchema
         if (!client)
             return false;
 
-        using CreateInterfaceFn = void* (*)(const char*, int*);
-
-        auto factory = reinterpret_cast<CreateInterfaceFn>(
-            GetProcAddress(client, "CreateInterface"));
-
-        if (!factory)
-            return false;
-
-        int returnCode = -1;
-
         void* source2Client =
-            factory("Source2Client002", &returnCode);
+            GetLootInterface("client.dll", "Source2Client002");
 
         if (!source2Client)
         {

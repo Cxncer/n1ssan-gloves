@@ -755,6 +755,11 @@ namespace
 
 namespace Gloves
 {
+    void ConstructPaintKit(void* item)
+    {
+        (void)CallCreatePaintKit(item);
+    }
+
     bool ApplyGloveItem(
         const GameContext& context,
         uint16_t definitionIndex,
@@ -819,9 +824,9 @@ namespace Gloves
 
         // 5. Preserve the low item ID; mark custom items with high = FFFFFFFF.
         const uint32_t itemIdHigh =
-            paintKit > 0
-            ? 0xFFFFFFFFu
-            : 0u;
+            (definitionIndex == 5028 || definitionIndex == 5029)
+            ? 0u
+            : 0xFFFFFFFFu;
 
         if (!WriteField(
             item, "C_EconItemView",

@@ -13,7 +13,7 @@
 #pragma comment(lib, "Psapi.lib")
 
 // ============================================================
-// v1.2.5a Checkpoint 2A-2E - added Gloves Paintkit
+// v1.2.6a Checkpoint 2A-2E - Resolve CreatePaintkit()
 // n1ssan-gloves — Checkpoint 1
 // Resolve Loot's two glove functions.
 // No game memory writes.

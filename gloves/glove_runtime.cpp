@@ -71,6 +71,13 @@ namespace Gloves
         config.wear =
             (std::clamp)(config.wear, 0.0001f, 1.0f);
 
+        if (customSelection &&
+            config.paintKit > 0 &&
+            context.currentDefinition == config.definitionIndex)
+        {
+            ConstructPaintKit(context.gloveItem);
+        }
+
         const ULONGLONG now = GetTickCount64();
 
         const bool configChanged =
@@ -95,9 +102,10 @@ namespace Gloves
             OWN_FLAG_FRAMES;
 
         const uint32_t expectedItemIdHigh =
-            config.paintKit > 0
-            ? 0xFFFFFFFFu
-            : 0u;
+            (config.definitionIndex == 5028 ||
+                config.definitionIndex == 5029)
+            ? 0u
+            : 0xFFFFFFFFu;
 
         const bool itemWasReset =
             customSelection &&

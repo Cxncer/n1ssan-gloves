@@ -25,6 +25,7 @@ namespace Gloves
 
     // Implemented by the game integration layer.
     bool GetGameContext(GameContext& context);
+    void ConstructPaintKit(void* item);
 
     // Implemented by the game integration layer.
     bool ApplyGloveItem(

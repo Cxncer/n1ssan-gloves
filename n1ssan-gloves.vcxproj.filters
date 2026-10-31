@@ -57,6 +57,9 @@
     <ClInclude Include="gloves\glove_paintkit_schema.h">
       <Filter>gloves</Filter>
     </ClInclude>
+    <ClInclude Include="gloves\glove_model_refresh.h">
+      <Filter>gloves</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp">
@@ -84,6 +87,9 @@
       <Filter>gloves</Filter>
     </ClCompile>
     <ClCompile Include="gloves\glove_paintkit_schema.cpp">
+      <Filter>gloves</Filter>
+    </ClCompile>
+    <ClCompile Include="gloves\glove_model_refresh.cpp">
       <Filter>gloves</Filter>
     </ClCompile>
   </ItemGroup>

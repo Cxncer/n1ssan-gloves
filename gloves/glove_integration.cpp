@@ -4,6 +4,7 @@
 #include "glove_functions.h"
 #include "econ_item_attribute_manager.h"
 #include "glove_paintkit_schema.h"
+#include "glove_model_refresh.h"
 
 #include <cstddef>
 #include <Windows.h>
@@ -17,6 +18,7 @@ namespace
 {
     using FrameStageFn = void(__fastcall*)(void*, int);
 
+    constexpr int FRAME_STAGE_RENDER_END = 6;
     constexpr int FRAME_STAGE_NET_UPDATE_END = 7;
 
     constexpr uintptr_t OFFSET_CONTROLLER_PAWN = 0x92C;
@@ -660,6 +662,17 @@ namespace
             // Match Lootline: update before the original engine processing.
             Gloves::Update();
         }
+
+        // Lootline ordering: refresh the player model BEFORE the original
+        // FRAME_RENDER_END processing.
+        if (stage == FRAME_STAGE_RENDER_END)
+        {
+            GlovesModelRefresh::OnRenderEnd();
+        }
+
+        // Always call the original function.
+        if (g_original)
+            g_original(instance, stage);
 
         // Always call the original function.
         if (g_original)

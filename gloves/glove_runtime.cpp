@@ -1,6 +1,7 @@
 #include "glove_runtime.h"
 #include "glove_state.h"
 #include "glove_config.h"
+#include "glove_model_refresh.h"
 
 #include <Windows.h>
 #include <cstdio>
@@ -140,8 +141,16 @@ namespace Gloves
         if (teamChanged)
         {
             state.clearFrames = CLEAR_FRAMES;
+
             state.lastTeam =
                 static_cast<std::uint8_t>(context.team);
+
+            // Queue the model refresh. It will execute at FRAME_RENDER_END.
+            GlovesModelRefresh::Request();
+
+            std::printf(
+                "[runtime] queued player-model refresh for team %d\n",
+                context.team);
         }
 
         if (configChanged ||

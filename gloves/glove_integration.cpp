@@ -397,7 +397,6 @@ namespace
                 "directRead=%d pawn=%p vtable=%p validVtable=%d "
                 "healthRead=%d health=%d\n",
                 controllerRead,
-                controllerRead,
                 (void*)controller,
                 pawnRead,
                 (void*)pawn,

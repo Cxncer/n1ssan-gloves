@@ -94,13 +94,18 @@ namespace Gloves
             state.frame - state.lastWriteFrame >
             OWN_FLAG_FRAMES;
 
+        const uint32_t expectedItemIdHigh =
+            (config.definitionIndex == 5028 ||
+                config.definitionIndex == 5029)
+            ? 0u
+            : 0xFFFFFFFFu;
+
         const bool itemWasReset =
             customSelection &&
             (
-                context.currentDefinition !=
-                config.definitionIndex ||
+                context.currentDefinition != config.definitionIndex ||
                 !context.initialized ||
-                context.itemIdHigh != 0xFFFFFFFFu ||
+                context.itemIdHigh != expectedItemIdHigh ||
                 flagRaisedByGame
                 );
 

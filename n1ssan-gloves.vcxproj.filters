@@ -77,7 +77,7 @@
     <ClCompile Include="gloves\glove_integration.cpp">
       <Filter>gloves</Filter>
     </ClCompile>
-    <ClCompile Include="glove_runtime.cpp">
+    <ClCompile Include="gloves\glove_runtime.cpp">
       <Filter>gloves</Filter>
     </ClCompile>
   </ItemGroup>

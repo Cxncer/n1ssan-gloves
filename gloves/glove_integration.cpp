@@ -5,6 +5,7 @@
 #include "econ_item_attribute_manager.h"
 #include "glove_paintkit_schema.h"
 
+#include <cstddef>
 #include <Windows.h>
 #include <Psapi.h>
 #include <cstdint>
@@ -413,7 +414,232 @@ namespace
         return 0;
     }
 
+    struct AttributeVectorSnapshot
+    {
+        std::int32_t size;
+        std::int32_t pad;
+        std::uintptr_t data;
+        std::int32_t allocationCount;
+        std::int32_t growSizeAndFlags;
+    };
 
+    bool ReadBoundedString(
+        uintptr_t address,
+        char* output,
+        std::size_t capacity)
+    {
+        if (!address || !output || capacity < 2)
+            return false;
+
+        output[0] = '\0';
+
+        for (std::size_t i = 0; i + 1 < capacity; ++i)
+        {
+            char ch = '\0';
+
+            if (!Read(address + i, ch))
+                return false;
+
+            output[i] = ch;
+
+            if (ch == '\0')
+                return i != 0;
+        }
+
+        output[capacity - 1] = '\0';
+        return true;
+    }
+
+    bool ReadCurrentModelPath(
+        void* pawn,
+        char* output,
+        std::size_t capacity)
+    {
+        if (!pawn || !output || capacity < 2)
+            return false;
+
+        output[0] = '\0';
+
+        uintptr_t sceneNode = 0;
+
+        if (!ReadField(
+            pawn,
+            "C_BaseEntity",
+            "m_pGameSceneNode",
+            sceneNode) || !sceneNode)
+            return false;
+
+        uintptr_t vtable = 0;
+        uintptr_t getSkeletonAddress = 0;
+
+        if (!Read(sceneNode, vtable) || !vtable ||
+            !Read(
+                vtable + 13 * sizeof(uintptr_t),
+                getSkeletonAddress) ||
+            !getSkeletonAddress ||
+            !InClient(getSkeletonAddress))
+            return false;
+
+        using GetSkeletonFn = void* (__fastcall*)(void*);
+
+        void* skeleton = nullptr;
+
+        __try
+        {
+            skeleton =
+                reinterpret_cast<GetSkeletonFn>(
+                    getSkeletonAddress)(
+                        reinterpret_cast<void*>(sceneNode));
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            return false;
+        }
+
+        if (!skeleton)
+            return false;
+
+        std::uint32_t modelStateOffset = 0;
+        std::uint32_t modelHandleOffset = 0;
+
+        if (!GlovesSchema::TryGet(
+            "CSkeletonInstance",
+            "m_modelState",
+            modelStateOffset) ||
+            !GlovesSchema::TryGet(
+                "CModelState",
+                "m_hModel",
+                modelHandleOffset))
+            return false;
+
+        // Verified against Lootline's CSkeletonInstance layout.
+        const uintptr_t modelState =
+            reinterpret_cast<uintptr_t>(skeleton) +
+            modelStateOffset;
+
+        // C_StrongHandle<C_Model> begins with ResourceBinding_t*.
+        // ResourceBinding_t::pData is its first member.
+        uintptr_t binding = 0;
+        uintptr_t model = 0;
+
+        if (!Read(modelState + modelHandleOffset, binding) ||
+            !binding ||
+            !Read(binding, model) ||
+            !model)
+            return false;
+
+        // Lootline C_Model:
+        // vtable at +0x00, perm_model_data.name at +0x08.
+        const char* modelName = nullptr;
+
+        if (!Read(model + sizeof(uintptr_t), modelName) ||
+            !modelName)
+            return false;
+
+        return ReadBoundedString(
+            reinterpret_cast<uintptr_t>(modelName),
+            output,
+            capacity);
+    }
+
+    void LogPostOriginalGloveState(uintptr_t pawn)
+    {
+        if (!pawn)
+            return;
+
+        std::uint32_t gloveOffset = 0;
+        std::uint32_t attributeListOffset = 0;
+        std::uint32_t attributesOffset = 0;
+
+        if (!GlovesSchema::TryGet(
+            "C_CSPlayerPawn",
+            "m_EconGloves",
+            gloveOffset) ||
+            !GlovesSchema::TryGet(
+                "C_EconItemView",
+                "m_AttributeList",
+                attributeListOffset) ||
+            !GlovesSchema::TryGet(
+                "CAttributeList",
+                "m_Attributes",
+                attributesOffset))
+        {
+            printf("[post-original] schema fields unavailable\n");
+            return;
+        }
+
+        void* item =
+            reinterpret_cast<void*>(pawn + gloveOffset);
+
+        std::uint16_t definition = 0;
+        std::uint32_t itemIdHigh = 0;
+        bool initialized = false;
+        bool needReapply = false;
+
+        const bool definitionOK = ReadField(
+            item,
+            "C_EconItemView",
+            "m_iItemDefinitionIndex",
+            definition);
+
+        const bool itemIdOK = ReadField(
+            item,
+            "C_EconItemView",
+            "m_iItemIDHigh",
+            itemIdHigh);
+
+        const bool initializedOK = ReadField(
+            item,
+            "C_EconItemView",
+            "m_bInitialized",
+            initialized);
+
+        const bool reapplyOK = ReadField(
+            reinterpret_cast<void*>(pawn),
+            "C_CSPlayerPawn",
+            "m_bNeedToReApplyGloves",
+            needReapply);
+
+        AttributeVectorSnapshot attributes{};
+
+        const uintptr_t vectorAddress =
+            reinterpret_cast<uintptr_t>(item) +
+            attributeListOffset +
+            attributesOffset;
+
+        const bool attributesOK =
+            Read(vectorAddress, attributes);
+
+        char modelPath[260]{};
+
+        const bool modelOK =
+            ReadCurrentModelPath(
+                reinterpret_cast<void*>(pawn),
+                modelPath,
+                sizeof(modelPath));
+
+        printf(
+            "[post-original] pawn=%p item=%p "
+            "def=%u(read:%d) "
+            "initialized=%d(read:%d) "
+            "idHigh=0x%08X(read:%d) "
+            "reapply=%d(read:%d) "
+            "attrs(size=%d data=%p capacity=%d flags=0x%X read:%d) "
+            "model=%s(read:%d)\n",
+            reinterpret_cast<void*>(pawn),
+            item,
+            static_cast<unsigned>(definition), definitionOK,
+            initialized ? 1 : 0, initializedOK,
+            itemIdHigh, itemIdOK,
+            needReapply ? 1 : 0, reapplyOK,
+            attributes.size,
+            reinterpret_cast<void*>(attributes.data),
+            attributes.allocationCount,
+            static_cast<unsigned>(attributes.growSizeAndFlags),
+            attributesOK,
+            modelOK ? modelPath : "<unavailable>",
+            modelOK);
+    }
 
     void __fastcall FrameStageHook(void* instance, int stage)
     {
@@ -440,7 +666,6 @@ namespace
             g_original(instance, stage);
 
         const uintptr_t pawn = GetLocalPawn();
-
         int32_t health = 0;
 
         if (!pawn ||
@@ -448,6 +673,20 @@ namespace
             health <= 0)
         {
             return;
+        }
+
+        // Sample AFTER the engine's original processing.
+        if (stage == FRAME_STAGE_NET_UPDATE_END)
+        {
+            static ULONGLONG lastSnapshotTime = 0;
+
+            const ULONGLONG now = GetTickCount64();
+
+            if (now - lastSnapshotTime >= 250)
+            {
+                lastSnapshotTime = now;
+                LogPostOriginalGloveState(pawn);
+            }
         }
 
         static uintptr_t lastPawn = 0;

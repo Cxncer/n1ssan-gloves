@@ -27,6 +27,7 @@ namespace Gloves
         int followUpIndex = 0;
 
         bool appliedCustomGloves = false;
+        float followUpSpawnTime = -1.0f;
     };
 
     inline RuntimeState g_state{};

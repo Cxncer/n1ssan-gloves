@@ -8,6 +8,7 @@ namespace Gloves
     struct GameContext
     {
         void* pawn = nullptr;
+        void* controller = nullptr;
         void* gloveItem = nullptr;
 
         int team = 0;
@@ -34,4 +35,6 @@ namespace Gloves
 
     // Runtime entry point, called by the frame-stage integration.
     void Update();
+
 }
+

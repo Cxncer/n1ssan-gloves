@@ -6,7 +6,7 @@ class C_EconItemView;
 namespace EconItemAttributeManager
 {
     // PaintKit, seed and wear are the only attributes this glove subsystem needs.
-    void Create(
+    bool Create(
         C_EconItemView* item,
         int paintKit,
         float wear,

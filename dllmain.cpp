@@ -13,7 +13,7 @@
 #pragma comment(lib, "Psapi.lib")
 
 // ============================================================
-// v1.1.3a 
+// v1.2.0a Checkpoint 2A-2E
 // n1ssan-gloves — Checkpoint 1
 // Resolve Loot's two glove functions.
 // No game memory writes.
@@ -243,6 +243,15 @@ DWORD WINAPI ExperimentThread(LPVOID)
 
     ResolveGloveFunctions();
     ResolveGameAllocator();
+
+    GloveFunctions::SetCreatePaintKit(g_createPaintKit);
+    GloveFunctions::SetSetBodyGroup(g_setBodyGroup);
+
+    printf("[gloves] Function table: %s\n",
+        GloveFunctions::GetCreatePaintKit() &&
+        GloveFunctions::GetSetBodyGroup()
+        ? "READY"
+        : "INCOMPLETE");
 
     const bool schemaReady = GlovesSchema::Initialize("client.dll");
 

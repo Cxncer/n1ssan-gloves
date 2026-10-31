@@ -1,4 +1,8 @@
 #include "glove_integration.h"
+#include "glove_runtime.h"
+#include "glove_schema.h"
+#include "glove_functions.h"
+#include "econ_item_attribute_manager.h"
 
 #include <Windows.h>
 #include <Psapi.h>
@@ -45,6 +49,56 @@ namespace
             value = {};
             return false;
         }
+    }
+
+    template<typename T>
+    bool Write(uintptr_t address, const T& value)
+    {
+        __try
+        {
+            *reinterpret_cast<T*>(address) = value;
+            return true;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            return false;
+        }
+    }
+
+    template<typename T>
+    bool ReadField(
+        void* base,
+        const char* className,
+        const char* fieldName,
+        T& value)
+    {
+        uint32_t offset = 0;
+
+        if (!base ||
+            !GlovesSchema::TryGet(className, fieldName, offset))
+            return false;
+
+        return Read(
+            reinterpret_cast<uintptr_t>(base) + offset,
+            value);
+    }
+
+    template<typename T>
+    bool WriteField(
+        void* base,
+        const char* className,
+        const char* fieldName,
+        const T& value)
+    {
+        uint32_t offset = 0;
+
+        if (!base ||
+            !GlovesSchema::TryGet(className, fieldName, offset))
+            return false;
+
+        return Write(
+            reinterpret_cast<uintptr_t>(base) + offset,
+            value);
     }
 
     bool InClient(uintptr_t address)
@@ -380,9 +434,10 @@ namespace
         if (g_original)
             g_original(instance, stage);
 
-        // Only inspect the local pawn at NET_UPDATE_END
-        if (stage != FRAME_STAGE_NET_UPDATE_END)
-            return;
+        if (stage == FRAME_STAGE_NET_UPDATE_END)
+        {
+            Gloves::Update();
+        }
 
         const uintptr_t pawn = GetLocalPawn();
 
@@ -513,5 +568,296 @@ namespace GlovesIntegration
             reinterpret_cast<void*>(g_original));
 
         return true;
+    }
+}
+
+namespace Gloves
+{
+    bool GetGameContext(GameContext& context)
+    {
+        context = {};
+
+        const uintptr_t pawnAddress = GetLocalPawn();
+
+        if (!pawnAddress)
+            return false;
+
+        void* pawn = reinterpret_cast<void*>(pawnAddress);
+
+        int health = 0;
+        int team = 0;
+        float spawnTime = 0.0f;
+
+        std::uint16_t currentDefinition = 0;
+        std::uint32_t itemIdHigh = 0;
+        bool initialized = false;
+        bool needReapply = false;
+
+        if (!ReadField(
+            context.gloveItem,
+            "C_EconItemView",
+            "m_iItemDefinitionIndex",
+            context.currentDefinition) ||
+            !ReadField(
+                context.gloveItem,
+                "C_EconItemView",
+                "m_iItemIDHigh",
+                context.itemIdHigh) ||
+            !ReadField(
+                context.gloveItem,
+                "C_EconItemView",
+                "m_bInitialized",
+                context.initialized) ||
+            !ReadField(
+                context.pawn,
+                "C_CSPlayerPawn",
+                "m_bNeedToReApplyGloves",
+                context.needReapply))
+        {
+            context = {};
+            return false;
+        }
+
+        uint32_t gloveOffset = 0;
+
+        if (!GlovesSchema::TryGet(
+            "C_CSPlayerPawn", "m_EconGloves", gloveOffset))
+        {
+            printf("[gloves] ERROR: m_EconGloves missing\n");
+            return false;
+        }
+
+        uintptr_t controller = 0;
+
+        if (g_localControllerGlobal)
+            Read(g_localControllerGlobal, controller);
+
+        context.pawn = pawn;
+        context.controller = reinterpret_cast<void*>(controller);
+
+        context.gloveItem = reinterpret_cast<void*>(
+            pawnAddress + gloveOffset);
+
+        context.health = health;
+        context.team = team;
+        context.spawnTime = spawnTime;
+
+        context.valid =
+            context.gloveItem != nullptr &&
+            health > 0 &&
+            (team == 2 || team == 3);
+
+        return context.valid;
+    }
+}
+
+namespace
+{
+    bool CallCreatePaintKit(void* item)
+    {
+        const auto fn = GloveFunctions::GetCreatePaintKit();
+
+        if (!fn || !item)
+            return false;
+
+        __try
+        {
+            fn(item);
+            return true;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            return false;
+        }
+    }
+
+    bool CallSetBodyGroup(void* pawn)
+    {
+        const auto fn = GloveFunctions::GetSetBodyGroup();
+
+        if (!fn || !pawn)
+            return false;
+
+        __try
+        {
+            fn(pawn, "first_or_third_person", 1);
+            return true;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            return false;
+        }
+    }
+}
+
+namespace Gloves
+{
+    bool ApplyGloveItem(
+        const GameContext& context,
+        uint16_t definitionIndex,
+        int paintKit,
+        int seed,
+        float wear)
+    {
+        if (!context.valid ||
+            !context.pawn ||
+            !context.gloveItem ||
+            !definitionIndex)
+        {
+            return false;
+        }
+
+        if (!GloveFunctions::GetSetBodyGroup())
+            return false;
+
+        if (paintKit > 0 &&
+            !GloveFunctions::GetCreatePaintKit())
+        {
+            return false;
+        }
+
+        void* item = context.gloveItem;
+
+        // 1. Set the definition and quality.
+        if (!WriteField(
+            item, "C_EconItemView",
+            "m_iItemDefinitionIndex", definitionIndex) ||
+            !WriteField(
+                item, "C_EconItemView",
+                "m_iEntityQuality", int32_t{ 3 }))
+        {
+            return false;
+        }
+
+        // 2. Remove only attributes owned by our manager.
+        EconItemAttributeManager::Remove(
+            reinterpret_cast<C_EconItemView*>(item));
+
+        // 3. Create paint, seed and wear attributes.
+        if (paintKit > 0)
+        {
+            if (!EconItemAttributeManager::Create(
+                reinterpret_cast<C_EconItemView*>(item),
+                paintKit,
+                wear,
+                seed))
+            {
+                printf("[gloves] Attribute creation FAILED\n");
+                return false;
+            }
+
+            // 4. Ask the engine to construct the paint kit.
+            if (!CallCreatePaintKit(item))
+            {
+                printf("[gloves] CreatePaintKit call FAILED\n");
+                return false;
+            }
+        }
+
+        // 5. Preserve the low item ID; mark custom items with high = FFFFFFFF.
+        const uint32_t itemIdHigh =
+            (definitionIndex == 5028 || definitionIndex == 5029)
+            ? 0u
+            : 0xFFFFFFFFu;
+
+        if (!WriteField(
+            item, "C_EconItemView",
+            "m_iItemIDHigh", itemIdHigh))
+        {
+            return false;
+        }
+
+        // 6. Copy the account ID if the controller and schema field are available.
+        if (context.controller)
+        {
+            uint64_t steamId = 0;
+
+            if (ReadField(
+                context.controller,
+                "CBasePlayerController",
+                "m_steamID",
+                steamId))
+            {
+                const uint32_t accountId =
+                    static_cast<uint32_t>(steamId & 0xFFFFFFFFull);
+
+                WriteField(
+                    item, "C_EconItemView",
+                    "m_iAccountID", accountId);
+            }
+        }
+
+        // 7. Mark the item ready and request material restoration.
+        if (!WriteField(
+            item, "C_EconItemView",
+            "m_bInitialized", true) ||
+            !WriteField(
+                item, "C_EconItemView",
+                "m_bDisallowSOC", false) ||
+            !WriteField(
+                item, "C_EconItemView",
+                "m_bRestoreCustomMaterialAfterPrecache", true))
+        {
+            return false;
+        }
+
+        // 8. Rebuild the glove body group.
+        if (!CallSetBodyGroup(context.pawn))
+        {
+            printf("[gloves] SetBodyGroup call FAILED\n");
+            return false;
+        }
+
+        // 9. Ask the game to rebuild the gloves.
+        if (!WriteField(
+            context.pawn,
+            "C_CSPlayerPawn",
+            "m_bNeedToReApplyGloves",
+            true))
+        {
+            return false;
+        }
+
+        printf(
+            "[gloves] APPLY OK pawn=%p item=%p def=%u paint=%d seed=%d wear=%.6f\n",
+            context.pawn,
+            item,
+            definitionIndex,
+            paintKit,
+            seed,
+            wear);
+
+        return true;
+    }
+
+    bool ClearGloveItem(const GameContext& context)
+    {
+        if (!context.pawn || !context.gloveItem)
+            return false;
+
+        EconItemAttributeManager::Remove(
+            reinterpret_cast<C_EconItemView*>(context.gloveItem));
+
+        const bool definitionCleared = WriteField(
+            context.gloveItem,
+            "C_EconItemView",
+            "m_iItemDefinitionIndex",
+            uint16_t{ 0 });
+
+        const bool initializedCleared = WriteField(
+            context.gloveItem,
+            "C_EconItemView",
+            "m_bInitialized",
+            false);
+
+        const bool rebuildRequested = WriteField(
+            context.pawn,
+            "C_CSPlayerPawn",
+            "m_bNeedToReApplyGloves",
+            true);
+
+        return definitionCleared &&
+            initializedCleared &&
+            rebuildRequested;
     }
 }

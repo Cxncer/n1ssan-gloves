@@ -12,20 +12,20 @@ namespace HardcodedGloves
         float wear;
     };
 
-    // T-side: Sport Gloves | Blaze
+    // T-side: Gloves
     inline constexpr GloveSelection T =
     {
-        5030,
-        1407,
+        5031,
+        1400,
         0,
         0.10f
     };
 
-    // CT-side: Specialist Gloves | Cloud Chaser
+    // CT-side: Gloves
     inline constexpr GloveSelection CT =
     {
-        5034,
-        1440,
+        5032,
+        10053,
         0,
         0.10f
     };
